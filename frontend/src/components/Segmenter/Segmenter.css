@@ -21,17 +21,20 @@
 }
 
 .segmenter-header {
+  position: relative;
   text-align: center;
   padding: 22px 12px 34px;
   animation: rise-in 600ms ease both;
 }
 
 .segmenter-header-row {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 16px;
   flex-wrap: wrap;
+  min-height: 80px;
 }
 
 .segmenter-header h1 {
@@ -52,6 +55,9 @@
 }
 
 .theme-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -385,6 +391,13 @@
 @media (max-width: 768px) {
   .segmenter-header-row {
     flex-direction: column;
+    min-height: 112px;
+  }
+
+  .theme-toggle {
+    position: absolute;
+    right: 0;
+    top: 0;
   }
 
   .comparison-header {
@@ -411,6 +424,10 @@
     font-size: 2rem;
   }
 
+  .segmenter-header-row {
+    min-height: 100px;
+  }
+
   .compare-grid {
     grid-template-columns: 1fr;
   }
@@ -429,7 +446,10 @@
   }
 
   .theme-toggle {
-    width: 100%;
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: auto;
     justify-content: center;
   }
 }
