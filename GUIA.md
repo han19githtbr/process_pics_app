@@ -9,7 +9,8 @@ Este projeto implementa um sistema de segmentação e comparação visual de con
 - exibir cada letra recortada visualmente;
 - comparar duas imagens para medir similaridade de conteúdo;
 - persistir o histórico de imagens processadas no MongoDB Atlas;
-- permitir consultar imagens antigas e suas letras recortadas no frontend.
+- permitir consultar imagens antigas e suas letras recortadas no frontend;
+- apresentar uma interface de dashboard premium em dark mode para revisão e análise profissional.
 
 A solução combina Python/OpenCV, FastAPI e React para processar texto em imagens, identificar ruídos e manter a leitura em ordem correta.
 
@@ -28,7 +29,22 @@ A solução combina Python/OpenCV, FastAPI e React para processar texto em image
 - Área de recortes com tamanho fixo e scroll vertical
 - Persistência opcional em MongoDB Atlas para produção
 
-## 3. Stack
+## 3. Visual e experiência do produto
+
+A interface foi refinada para um modelo premium de dashboard com suporte a dark mode e light mode, com:
+
+- fundo escuro com gradientes suaves de roxo, rosa e ciano, além de uma versão clara para uso em ambientes mais neutros;
+- painéis em vidro translúcido sobre fundos contrastados;
+- contraste forte para texto, botões e score de similaridade;
+- cards de upload, comparação e histórico com diferenciação visual mais clara e profissional;
+- botão de alternância de tema com switch para modo claro/escuro;
+- área de letras recortadas com tamanho fixo e rolagem vertical controlada;
+- foco em clareza visual para quem revisa múltiplas imagens e letras em sequência;
+- responsividade ajustada para desktop, tablet e celular sem quebrar o layout.
+
+Esse refinamento foi aplicado ao layout principal, ao painel de histórico, à grade de letras e aos blocos de upload/resultado.
+
+## 4. Stack
 
 ### Backend
 - Python 3.10+
@@ -45,7 +61,7 @@ A solução combina Python/OpenCV, FastAPI e React para processar texto em image
 - Axios
 - JSZip
 
-## 4. Requisitos
+## 5. Requisitos
 
 - Python 3.10+
 - Node.js 18+
@@ -53,7 +69,7 @@ A solução combina Python/OpenCV, FastAPI e React para processar texto em image
 - MongoDB Atlas account
 - Git
 
-## 5. Preparar o backend
+## 6. Preparar o backend
 
 Na raiz do projeto:
 
@@ -65,7 +81,7 @@ pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-## 6. Configurar as variáveis de ambiente
+## 7. Configurar as variáveis de ambiente
 
 Crie um arquivo `.env` dentro da pasta `backend` com o conteúdo abaixo:
 
@@ -102,7 +118,7 @@ MONGODB_COLLECTION_NAME=processed_images_prod
 5. Vá em Database > Connect > Connect your application
 6. Copie a string de conexão e cole em `MONGODB_URI`
 
-## 7. Rodar o backend localmente
+## 8. Rodar o backend localmente
 
 ```powershell
 cd backend
@@ -122,7 +138,7 @@ Resposta esperada:
 {"status": "ok", "service": "letter-segmenter"}
 ```
 
-## 8. Preparar o frontend
+## 9. Preparar o frontend
 
 No diretório do frontend:
 
@@ -138,7 +154,7 @@ A aplicação normalmente fica em:
 http://localhost:5173
 ```
 
-## 9. Configurando a URL da API no frontend
+## 10. Configurando a URL da API no frontend
 
 No Vite, a variável pode ser configurada em um arquivo `.env.local` do frontend:
 
@@ -152,7 +168,7 @@ Para produção no Render:
 VITE_API_URL=https://seu-backend.onrender.com/api
 ```
 
-## 10. Persistência no MongoDB Atlas
+## 11. Persistência no MongoDB Atlas
 
 A aplicação agora pode persistir o histórico de imagens processadas no MongoDB Atlas. Essa escolha faz sentido para o volume de imagens e textos longos porque o MongoDB aceita documentos flexíveis, armazena ampla quantidade de metadados, imagens em base64 e recortes em arrays sem exigir um esquema rígido.
 
@@ -179,7 +195,7 @@ processed_images_prod
 
 Isso evita misturar dados locais com registros de produção.
 
-## 11. Histórico no frontend
+## 12. Histórico no frontend
 
 A interface possui um painel de histórico de imagens processadas com:
 
@@ -191,7 +207,7 @@ A interface possui um painel de histórico de imagens processadas com:
 
 A área de recortes usa tamanho fixo e rolagem vertical para mostrar todas as letras quando houver muitas.
 
-## 12. Ordem correta das letras
+## 13. Ordem correta das letras
 
 A lógica de recorte foi ajustada para remover ruído e preservar a ordem real do texto.
 
@@ -210,7 +226,7 @@ Além disso, o backend:
 - preserva a sequência por linha e palavra;
 - organiza os recortes seguindo a leitura natural do texto.
 
-## 13. Principais endpoints da API
+## 14. Principais endpoints da API
 
 - `POST /api/segment` — segmenta uma imagem e retorna letras, transcript e dados do processamento
 - `POST /api/compare` — compara duas imagens e retorna grau de similaridade e status
@@ -218,7 +234,7 @@ Além disso, o backend:
 - `GET /api/history/{item_id}` — busca um item do histórico por ID
 - `GET /api/health` — health check da API
 
-## 14. Arquitetura e fluxo principal
+## 15. Arquitetura e fluxo principal
 
 ### Backend
 

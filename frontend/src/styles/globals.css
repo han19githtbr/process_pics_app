@@ -1,31 +1,76 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 :root {
-  /* paleta mais viva e com mais contraste */
-  --primary-color: #ff2f7e;
-  --primary-dark: #d81762;
-  --secondary-color: #00e5c7;
-  --secondary-dark: #00b8a3;
-  --accent-color: #ffc93c;
-  --accent-purple: #7c5cff;
-  --ink: #10122b;
-  --background: #f4f1ff;
-  --card-background: #ffffff;
-  --text-color: #10122b;
-  --muted-text: #5c6285;
-  --border-color: #e2def7;
+  --primary-color: #ff5a8a;
+  --primary-dark: #dd3d73;
+  --secondary-color: #16d7c8;
+  --secondary-dark: #0ea7a2;
+  --accent-color: #ffd166;
+  --accent-purple: #6d5ef6;
 
-  --shadow: 0 18px 45px rgba(16, 18, 43, 0.12);
-  --shadow-lg: 0 28px 60px rgba(16, 18, 43, 0.18);
-  --glow-primary: 0 0 0 4px rgba(255, 47, 126, 0.18);
-  --glow-secondary: 0 0 0 4px rgba(0, 229, 199, 0.18);
+  --bg-page: #07111d;
+  --bg-page-2: #0b1326;
+  --bg-panel: rgba(15, 23, 42, 0.76);
+  --bg-panel-strong: rgba(20, 31, 52, 0.9);
+  --bg-panel-soft: rgba(255, 255, 255, 0.04);
+  --bg-card: rgba(255, 255, 255, 0.05);
+  --bg-input: rgba(255, 255, 255, 0.06);
+  --bg-contrast: #17233f;
+  --bg-contrast-2: #215d6e;
+
+  --ink: #09111f;
+  --text-color: #ecf4ff;
+  --heading-color: #edf6ff;
+  --muted-text: #9db1cf;
+  --muted-text-strong: #dfe9ff;
+  --border-color: rgba(148, 163, 184, 0.18);
+  --shadow: 0 18px 45px rgba(2, 6, 23, 0.35);
+  --shadow-lg: 0 28px 60px rgba(2, 6, 23, 0.55);
+  --glow-primary: 0 0 0 4px rgba(255, 90, 138, 0.18);
+  --glow-secondary: 0 0 0 4px rgba(22, 215, 200, 0.18);
 
   --radius: 18px;
   --transition: 180ms cubic-bezier(.4,0,.2,1);
 }
 
+:root[data-theme='light'] {
+  --bg-page: #edf4ff;
+  --bg-page-2: #f8fbff;
+  --bg-panel: rgba(255, 255, 255, 0.9);
+  --bg-panel-strong: rgba(255, 255, 255, 0.98);
+  --bg-panel-soft: rgba(109, 94, 246, 0.04);
+  --bg-card: rgba(13, 24, 40, 0.035);
+  --bg-input: rgba(15, 23, 42, 0.04);
+  --bg-contrast: #eef3ff;
+  --bg-contrast-2: #dff7ff;
+
+  --ink: #101827;
+  --text-color: #1d2433;
+  --heading-color: #111827;
+  --muted-text: #5d6b82;
+  --muted-text-strong: #334155;
+  --border-color: rgba(15, 23, 42, 0.1);
+  --shadow: 0 18px 45px rgba(96, 109, 148, 0.12);
+  --shadow-lg: 0 28px 60px rgba(96, 109, 148, 0.18);
+}
+
 html {
   scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(109, 94, 246, 0.18), transparent 30%),
+    radial-gradient(circle at top right, rgba(255, 90, 138, 0.12), transparent 24%),
+    linear-gradient(180deg, var(--bg-page) 0%, var(--bg-page-2) 42%, var(--bg-page) 100%);
+  color: var(--text-color);
+  font-family: 'DM Sans', sans-serif;
+}
+
+#root {
+  min-height: 100vh;
 }
 
 ::selection {

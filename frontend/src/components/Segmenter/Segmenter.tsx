@@ -12,6 +12,7 @@ import { compareImages, getProcessingHistory, getHistoryItem } from '../../servi
 import './Segmenter.css';
 
 export const Segmenter: React.FC = () => {
+  const [theme, setTheme] = React.useState<'dark' | 'light'>('dark');
   const sourceUpload = useImageUpload();
   const comparisonUpload = useImageUpload();
   const { loading, error: segmentError, result, segment, reset } = useSegmenter();
@@ -43,6 +44,10 @@ export const Segmenter: React.FC = () => {
       setHistoryLoading(false);
     }
   }, []);
+
+  React.useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   React.useEffect(() => {
     void loadHistory();
@@ -149,7 +154,20 @@ export const Segmenter: React.FC = () => {
   return (
     <div className="segmenter-container">
       <header className="segmenter-header">
-        <h1>Pattern Checker</h1>
+        <div className="segmenter-header-row">
+          <h1>Pattern Checker</h1>
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+            aria-label="Alternar entre modo claro e escuro"
+          >
+            <span>{theme === 'dark' ? '🌙' : '☀️'}</span>
+            <span className="theme-toggle-track" aria-hidden="true">
+              <span className="theme-toggle-thumb" />
+            </span>
+          </button>
+        </div>
         <p>Segmentação, comparação e validação de semelhança entre imagens de texto</p>
       </header>
 
