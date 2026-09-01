@@ -258,41 +258,6 @@ Resposta esperada:
 {"status":"ok","service":"letter-segmenter"}
 ```
 
-
-## Para acessar o backend pelo powershell
-
-cd "C:\Users\Handy Claude\Desktop\processamento-de-imagens\backend"
-
-.\.venv\Scripts\Activate.ps1
-
-## O que é .venv
-É uma pasta que contém uma cópia isolada do Python só para esse projeto — com seu próprio interpretador e suas próprias bibliotecas instaladas (FastAPI, OpenCV, etc.), separada do Python "global" da sua máquina. Isso evita que as dependências de um projeto conflitem com as de outro.
-
-## O que é Scripts\Activate.ps1
-Dentro de .venv\Scripts\ ficam os executáveis desse ambiente isolado, incluindo o script Activate.ps1, que é feito especificamente para PowerShell (existem versões equivalentes para outros terminais, como activate para cmd ou activate.sh/source activate para bash).
-
-## O que acontece quando você roda o comando
-
-Ele modifica a variável de ambiente PATH da sessão atual do PowerShell, colocando o .venv\Scripts na frente — então quando você digita python ou pip, o Windows vai achar primeiro os executáveis de dentro do .venv, não os globais.
-Ele muda o prompt para mostrar (.venv) no início, como confirmação visual de que está ativo.
-É por isso que, depois de ativar, um pip install instala o pacote só dentro dessa pasta .venv, sem afetar o resto do seu sistema.
-
-## O .\ na frente
-É só a forma como o PowerShell exige que você rode um script que está no diretório atual (por segurança, ele não executa scripts "soltos" sem indicar explicitamente o caminho, mesmo que estejam na pasta onde você já está).
-
-
-## Outros passos
-
-1-cd backend
-2-pip install --upgrade pip
-3-pip install -r requirements.txt
-4-python -m src.server
-
-## -- testar se o backend está de pé e respondendo corretamente
-
-curl http://localhost:8000/health
-
-
 ### 4. Deploy do frontend na Vercel
 
 1. Acesse https://vercel.com
@@ -406,3 +371,186 @@ git remote -v
 
 git branch -M master
 git push -u origin master
+
+## Roteiro real de deploy (Windows + PowerShell) — passo a passo executado
+
+Esta seção documenta, na ordem exata, o processo que foi seguido para colocar este projeto no ar, usando PowerShell no Windows, Render para o backend e Vercel para o frontend.
+
+### 1. Ativar o ambiente virtual (.venv) no PowerShell
+
+Na raiz do projeto (`processamento-de-imagens`), com PowerShell aberto **como Administrador**:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+O que esse comando faz:
+
+- `.venv` é a pasta que contém uma cópia isolada do Python só para este projeto, com suas próprias bibliotecas (FastAPI, OpenCV, etc.), separada do Python global da máquina.
+- `Scripts\Activate.ps1` é o script de ativação específico para PowerShell (no Git Bash o equivalente é `source .venv/Scripts/activate`).
+- Ao rodar, ele: (1) ajusta o `PATH` da sessão atual para priorizar os executáveis de dentro de `.venv`; (2) muda o prompt para mostrar `(.venv)` no início, confirmando que está ativo; (3) faz com que `pip install` instale pacotes só dentro dessa pasta, sem afetar o resto do sistema.
+- O `.\` no início é exigido pelo PowerShell para rodar scripts do diretório atual.
+- A ativação vale só para aquela sessão do terminal — se fechar e abrir de novo, é preciso repetir o comando.
+
+Se aparecer erro de "execution policy" ao ativar, rode antes:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+Confirme que o prompt passou a mostrar `(.venv)` no início da linha.
+
+### 2. Instalar as dependências do backend
+
+```powershell
+cd backend
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+**Erro comum no Windows:** `WinError 5: Acesso negado` ao instalar `opencv-python-headless`, geralmente porque o arquivo `cv2.pyd` está em uso por outro processo (servidor rodando, VS Code com terminal Python ativo, antivírus escaneando) ou por falta de permissão.
+
+Soluções, em ordem:
+
+1. Feche qualquer terminal com o backend rodando, feche o VS Code se tiver terminal Python ativo nesse venv.
+2. Pause o antivírus temporariamente ou adicione a pasta do projeto às exceções.
+3. Rode o PowerShell **como Administrador** e repita o `pip install`.
+4. Se persistir, apague manualmente a pasta `backend/.venv/Lib/site-packages/cv2` e reinstale.
+5. Último recurso: apague a pasta `.venv` inteira e recrie com `python -m venv .venv`.
+
+### 3. Testar o backend localmente
+
+Ainda dentro de `backend`, com o `.venv` ativado:
+
+```powershell
+python -m src.server
+```
+
+Isso sobe o servidor Uvicorn em `http://0.0.0.0:8000`. Sem fechar esse terminal, abra outro (ou o navegador) e teste:
+
+```powershell
+curl http://localhost:8000/health
+```
+
+Resposta esperada:
+
+```json
+{"status":"ok","service":"letter-segmenter"}
+```
+
+Esse teste confirma que a instalação das dependências funcionou de verdade e que o servidor sobe sem erros, antes de ir para produção.
+
+### 4. Commitar e enviar mudanças para o GitHub
+
+Verificar o estado do repositório antes de subir:
+
+```powershell
+git status
+git remote -v
+```
+
+Se houver arquivos modificados, revisar as mudanças antes de commitar:
+
+```powershell
+git diff caminho/do/arquivo.py
+```
+
+(no pager que abre, aperte `q` para sair e voltar ao prompt)
+
+Depois, adicionar, commitar e enviar:
+
+```powershell
+git add .
+git commit -m "chore: melhora robustez das configs de ambiente para deploy"
+git push origin master
+```
+
+### 5. Deploy do backend no Render
+
+Em [render.com](https://render.com), New + → Web Service → conectar o repositório GitHub. Preencher:
+
+| Campo | Valor |
+|---|---|
+| Root Directory | `backend` |
+| Language | Python 3 |
+| Branch | `master` |
+| Build Command | `pip install --upgrade pip && pip install -r requirements.txt` |
+| Start Command | `python -m uvicorn src.server:app --host 0.0.0.0 --port $PORT` |
+| Plano | Free (para começar) |
+
+Variáveis de ambiente adicionadas:
+
+```env
+ENVIRONMENT=production
+DEBUG=false
+HOST=0.0.0.0
+PORT=10000
+ALLOWED_ORIGINS=https://seu-app.vercel.app   # valor temporário, atualizado depois
+```
+
+Clicar em **Deploy web service** e aguardar o build. Ao final, o Render fornece uma URL pública, por exemplo:
+
+```
+https://process-pics-app.onrender.com
+```
+
+Testar o health check da URL pública:
+
+```powershell
+curl https://process-pics-app.onrender.com/health
+```
+
+Resposta esperada: `200 OK` com `{"status":"ok","service":"letter-segmenter"}`.
+
+### 6. Deploy do frontend na Vercel
+
+Em [vercel.com](https://vercel.com), Add New → Project → importar o mesmo repositório GitHub. Preencher:
+
+| Campo | Valor |
+|---|---|
+| Root Directory | `frontend` |
+| Application Preset | Vite (detectado automaticamente) |
+| Build Command | `npm install && npm run build` (padrão) |
+| Output Directory | `dist` (padrão) |
+
+Expandir **Environment Variables** e adicionar:
+
+```env
+VITE_API_URL=https://process-pics-app.onrender.com/api
+```
+
+Clicar em **Deploy**. Ao final, status **Ready** e domínio público, por exemplo:
+
+```
+https://process-pics-app.vercel.app
+```
+
+### 7. Atualizar o CORS no backend com a URL real da Vercel
+
+Voltar ao Render → serviço do backend → **Environment** → editar a variável `ALLOWED_ORIGINS`, trocando o valor temporário pela URL real gerada pela Vercel:
+
+```env
+ALLOWED_ORIGINS=https://process-pics-app.vercel.app
+```
+
+Salvar. O Render faz redeploy automático para aplicar a nova variável — aguardar até o status voltar a **Live**.
+
+### 8. Validar a integração completa
+
+Abrir a URL do frontend no navegador, fazer upload de uma imagem e testar a comparação. Abrir o Console do navegador (F12) e confirmar que não há erros de CORS.
+
+### Resumo do fluxo
+
+```text
+.venv ativado → dependências instaladas → backend testado local (/health)
+        ↓
+git add / commit / push → GitHub atualizado
+        ↓
+Render (backend) → deploy → URL pública testada (/health)
+        ↓
+Vercel (frontend) → deploy com VITE_API_URL apontando pro backend
+        ↓
+Render: ALLOWED_ORIGINS atualizado com a URL real da Vercel
+        ↓
+Teste end-to-end no navegador, sem erros de CORS
+```
