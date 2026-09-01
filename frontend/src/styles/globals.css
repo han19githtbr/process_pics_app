@@ -1,0 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
+
+:root {
+  /* paleta mais viva e com mais contraste */
+  --primary-color: #ff2f7e;
+  --primary-dark: #d81762;
+  --secondary-color: #00e5c7;
+  --secondary-dark: #00b8a3;
+  --accent-color: #ffc93c;
+  --accent-purple: #7c5cff;
+  --ink: #10122b;
+  --background: #f4f1ff;
+  --card-background: #ffffff;
+  --text-color: #10122b;
+  --muted-text: #5c6285;
+  --border-color: #e2def7;
+
+  --shadow: 0 18px 45px rgba(16, 18, 43, 0.12);
+  --shadow-lg: 0 28px 60px rgba(16, 18, 43, 0.18);
+  --glow-primary: 0 0 0 4px rgba(255, 47, 126, 0.18);
+  --glow-secondary: 0 0 0 4px rgba(0, 229, 199, 0.18);
+
+  --radius: 18px;
+  --transition: 180ms cubic-bezier(.4,0,.2,1);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+::selection {
+  background: var(--accent-purple);
+  color: white;
+}
+
+/* barra de rolagem mais estilosa */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--primary-color), var(--accent-purple));
+  border-radius: 999px;
+}
+
+/* keyframes que faltavam (estavam sendo usadas mas não existiam) */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes result-in {
+  from { opacity: 0; transform: scale(0.96) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-6px); }
+}
