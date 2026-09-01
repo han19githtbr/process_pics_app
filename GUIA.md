@@ -258,6 +258,41 @@ Resposta esperada:
 {"status":"ok","service":"letter-segmenter"}
 ```
 
+
+## Para acessar o backend pelo powershell
+
+cd "C:\Users\Handy Claude\Desktop\processamento-de-imagens\backend"
+
+.\.venv\Scripts\Activate.ps1
+
+## O que é .venv
+É uma pasta que contém uma cópia isolada do Python só para esse projeto — com seu próprio interpretador e suas próprias bibliotecas instaladas (FastAPI, OpenCV, etc.), separada do Python "global" da sua máquina. Isso evita que as dependências de um projeto conflitem com as de outro.
+
+## O que é Scripts\Activate.ps1
+Dentro de .venv\Scripts\ ficam os executáveis desse ambiente isolado, incluindo o script Activate.ps1, que é feito especificamente para PowerShell (existem versões equivalentes para outros terminais, como activate para cmd ou activate.sh/source activate para bash).
+
+## O que acontece quando você roda o comando
+
+Ele modifica a variável de ambiente PATH da sessão atual do PowerShell, colocando o .venv\Scripts na frente — então quando você digita python ou pip, o Windows vai achar primeiro os executáveis de dentro do .venv, não os globais.
+Ele muda o prompt para mostrar (.venv) no início, como confirmação visual de que está ativo.
+É por isso que, depois de ativar, um pip install instala o pacote só dentro dessa pasta .venv, sem afetar o resto do seu sistema.
+
+## O .\ na frente
+É só a forma como o PowerShell exige que você rode um script que está no diretório atual (por segurança, ele não executa scripts "soltos" sem indicar explicitamente o caminho, mesmo que estejam na pasta onde você já está).
+
+
+## Outros passos
+
+1-cd backend
+2-pip install --upgrade pip
+3-pip install -r requirements.txt
+4-python -m src.server
+
+## -- testar se o backend está de pé e respondendo corretamente
+
+curl http://localhost:8000/health
+
+
 ### 4. Deploy do frontend na Vercel
 
 1. Acesse https://vercel.com
@@ -358,3 +393,16 @@ processamento-de-imagens/
 ## Conclusão
 
 O passo a passo mais recomendado para este projeto é subir o frontend na Vercel e o backend no Render, usando variáveis de ambiente para conectar os serviços. Isso reduz a complexidade de infraestrutura, oferece HTTPS automático e facilita deploy contínuo por GitHub.
+
+
+
+## Comandos uteis do Git para resolver esse erro: remote origin already exists.
+
+git remote remove origin
+git remote add origin https://github.com/han19githtbr/process_pics_app.git
+git remote -v
+
+## Enviar para o GitHub
+
+git branch -M master
+git push -u origin master
