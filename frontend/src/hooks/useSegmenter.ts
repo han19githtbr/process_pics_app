@@ -8,12 +8,12 @@ export const useSegmenter = () => {
   const [result, setResult] = useState<SegmentResult | null>(null);
 
   const segment = useCallback(
-    async (image: string, options?: ProcessingOptions) => {
+    async (image: string, options?: ProcessingOptions, fileName?: string) => {
       setLoading(true);
       setError(null);
 
       try {
-        const data = await segmentImage(image, options);
+        const data = await segmentImage(image, options, fileName);
 
         const normalizedResult = {
           ...data,
