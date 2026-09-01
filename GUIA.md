@@ -38,6 +38,8 @@ A interface foi refinada para um modelo premium de dashboard com suporte a dark 
 - contraste forte para texto, botões e score de similaridade;
 - cards de upload, comparação e histórico com diferenciação visual mais clara e profissional;
 - botão de alternância de tema com switch para modo claro/escuro;
+- textos de ajuda e legendas em light mode ajustados para alta legibilidade em fundo escuro do painel lateral;
+- botões de ação em roxo escuro para manter contraste e consistência visual em ambos os temas;
 - área de letras recortadas com tamanho fixo e rolagem vertical controlada;
 - foco em clareza visual para quem revisa múltiplas imagens e letras em sequência;
 - responsividade ajustada para desktop, tablet e celular sem quebrar o layout.

@@ -27,6 +27,16 @@
   margin-bottom: 6px;
 }
 
+:root[data-theme='light'] .eyebrow,
+:root[data-theme='light'] .control-panel h3,
+:root[data-theme='light'] .control-group label,
+:root[data-theme='light'] .control-group p,
+:root[data-theme='light'] .control-group small,
+:root[data-theme='light'] .toggle-copy strong,
+:root[data-theme='light'] .toggle-copy small {
+  color: #f8fafc;
+}
+
 .control-panel h3 {
   margin: 0;
   color: #f8fafc;
@@ -239,24 +249,30 @@
 }
 
 .btn-primary {
-  background: linear-gradient(120deg, #16c6c1, #4bdc9b);
+  background: linear-gradient(120deg, #2d1e54, #3d2d6c);
   color: white;
-  box-shadow: 0 10px 24px rgba(46, 204, 113, 0.24);
+  box-shadow: 0 10px 24px rgba(45, 30, 84, 0.28);
 }
 
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-2px);
-  filter: brightness(1.02);
+  filter: brightness(1.04);
 }
 
 .btn-secondary {
-  background: linear-gradient(120deg, #ff8a5b, var(--primary-color));
+  background: linear-gradient(120deg, #2d1e54, #3d2d6c);
   color: white;
-  box-shadow: 0 10px 24px rgba(232, 87, 77, 0.18);
+  box-shadow: 0 10px 24px rgba(45, 30, 84, 0.24);
 }
 
 .btn-secondary:hover:not(:disabled) {
   transform: translateY(-2px);
+  filter: brightness(1.04);
+}
+
+:root[data-theme='light'] .btn-primary,
+:root[data-theme='light'] .btn-secondary {
+  background: linear-gradient(120deg, #2d1e54, #3d2d6c);
 }
 
 .method-info {
