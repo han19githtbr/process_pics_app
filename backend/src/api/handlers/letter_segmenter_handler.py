@@ -1,40 +1,53 @@
 import json
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from ...core.factory.segmenter_factory import SegmenterFactory
 from ...core.models.processing_options import ProcessingOptions
 from ...core.utils.image_utils import ImageUtils
+from ...services.mongodb_service import MongoDBService
+
 
 class LetterSegmenterHandler:
     """Handler para requisições de segmentação."""
-    
+
     def __init__(self):
         self.segmenter = SegmenterFactory.create_default_segmenter()
-    
+        self.mongodb_service = MongoDBService()
+
+    def _serialize_letters(self, result) -> List[Dict[str, Any]]:
+        return [
+            {
+                'id': i + 1,
+                'line': letter.line,
+                'x': letter.x,
+                'y': letter.y,
+                'width': letter.width,
+                'height': letter.height,
+                'area': letter.area,
+                'confidence': letter.confidence,
+                'image': letter.image,
+            }
+            for i, letter in enumerate(result.letters)
+        ]
+
+    def list_history(self, limit: int = 20):
+        return self.mongodb_service.list_history(limit=limit)
+
+    def get_history_item(self, item_id: str):
+        return self.mongodb_service.get_history_item(item_id)
+
     def handle_segment(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Processa requisição de segmentação."""
         try:
             image_data = data.get('image')
             if not image_data:
                 return {'error': 'Envie uma imagem para processamento.'}, 400
-            
+
             image = ImageUtils.decode_data_url(image_data)
             options_data = data.get('options', {})
             options = ProcessingOptions.from_dict(options_data)
             result = self.segmenter.segment(image, options)
-            letters = [
-                {
-                    'id': i + 1,
-                    'line': letter.line,
-                    'x': letter.x,
-                    'y': letter.y,
-                    'width': letter.width,
-                    'height': letter.height,
-                    'area': letter.area,
-                    'confidence': letter.confidence,
-                    'image': letter.image
-                }
-                for i, letter in enumerate(result.letters)
-            ]
+            letters = self._serialize_letters(result)
+            transcript = result.transcript or result.transcript_text
 
             meta = {
                 'width': result.metadata.get('width'),
@@ -42,23 +55,36 @@ class LetterSegmenterHandler:
                 'totalLetters': result.metadata.get('total_letters'),
                 'processingTime': result.metadata.get('processing_time'),
                 'confidenceScore': result.metadata.get('confidence_score'),
-                'scale': result.metadata.get('scale')
+                'scale': result.metadata.get('scale'),
+                'transcript': transcript,
             }
 
-            return {
+            payload = {
                 'letters': letters,
                 'debugImage': result.debug_image,
                 'meta': meta,
-                'transcript': result.transcript_text,
-                'confidence': result.confidence_score
-            }, 200
-            
+                'transcript': transcript,
+                'confidence': result.confidence_score,
+            }
+
+            if self.mongodb_service.is_enabled:
+                file_name = (data.get('fileName') or data.get('name') or 'imagem-processada.png').strip() or 'imagem-processada.png'
+                self.mongodb_service.save_processing_result(
+                    image_data=image_data,
+                    original_name=file_name,
+                    transcript=transcript,
+                    letters=letters,
+                    metadata=meta,
+                )
+
+            return payload, 200
+
         except Exception as e:
             import traceback
             traceback.print_exc()
             return {
                 'error': 'Falha ao segmentar a imagem.',
-                'detail': str(e)
+                'detail': str(e),
             }, 500
 
     def handle_compare(self, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -90,5 +116,5 @@ class LetterSegmenterHandler:
             traceback.print_exc()
             return {
                 'error': 'Falha ao comparar as imagens.',
-                'detail': str(e)
+                'detail': str(e),
             }, 500

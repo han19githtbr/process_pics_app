@@ -1,15 +1,16 @@
 import axios from 'axios';
-import { ProcessingOptions, SegmentResult, ComparisonResult } from '../types';
+import { ProcessingOptions, SegmentResult, ComparisonResult, HistoryEntry } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 export const segmentImage = async (
   image: string,
-  options?: ProcessingOptions
+  options?: ProcessingOptions,
+  fileName?: string
 ): Promise<SegmentResult> => {
   const response = await axios.post(
     `${API_URL}/segment`,
-    { image, options: options || {} },
+    { image, fileName, options: options || {} },
     {
       headers: {
         'Content-Type': 'application/json',
@@ -36,4 +37,14 @@ export const compareImages = async (
   );
 
   return response.data;
+};
+
+export const getProcessingHistory = async (): Promise<HistoryEntry[]> => {
+  const response = await axios.get(`${API_URL}/history`);
+  return response.data?.items ?? [];
+};
+
+export const getHistoryItem = async (itemId: string): Promise<HistoryEntry | null> => {
+  const response = await axios.get(`${API_URL}/history/${itemId}`);
+  return response.data ?? null;
 };

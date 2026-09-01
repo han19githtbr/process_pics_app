@@ -195,7 +195,7 @@ class ImprovedSegmenter(ILetterSegmenter):
         return letter_boxes
 
     def _group_letters_by_words(self, letters: List[LetterBox]) -> List[List[LetterBox]]:
-        """Agrupa cartas por palavra usando espaçamento horizontal e linha."""
+        """Agrupa componentes por palavra usando espaçamento horizontal e linha."""
         if not letters:
             return []
 
@@ -211,7 +211,7 @@ class ImprovedSegmenter(ILetterSegmenter):
             previous = current_word[-1]
             gap = letter.x - (previous.x + previous.width)
             same_line = (letter.line or previous.line or 1) == (previous.line or 1)
-            word_gap_threshold = max(20, previous.width * 5)
+            word_gap_threshold = max(18, previous.width * 5)
 
             if same_line and gap <= word_gap_threshold:
                 current_word.append(letter)
@@ -225,17 +225,20 @@ class ImprovedSegmenter(ILetterSegmenter):
         return words
 
     def _sort_letters_by_word(self, letters: List[LetterBox]) -> List[LetterBox]:
-        """Ordena as letras por linha e por palavra, mantendo a ordem correta dentro da palavra."""
+        """Ordena as letras por linha e por palavra, preservando a ordem real da leitura."""
         grouped_words = self._group_letters_by_words(letters)
         ordered: List[LetterBox] = []
 
         for word in grouped_words:
             ordered.extend(sorted(word, key=lambda box: box.x))
 
+        if not ordered:
+            return sorted(letters, key=lambda box: (box.line or 1, box.x, box.y))
+
         return ordered
 
     def _build_transcript(self, letters: List[LetterBox]) -> str:
-        """Gera a sequência em ordem de leitura, sem placeholders artificiais como L1/L2."""
+        """Gera a sequência em ordem de leitura, respeitando a ordem do texto original sem placeholders artificiais."""
         if not letters:
             return ''
 

@@ -1,181 +1,39 @@
-# Guia do Pattern Checker
+# Guia consolidado
 
-## Visão geral
+Este arquivo foi substituído pelo guia principal em [GUIA.md](GUIA.md).
 
-Este projeto implementa um sistema de segmentação e comparação visual de conteúdo textual em imagens. Ele foi pensado para avaliar se duas imagens possuem o mesmo conteúdo, com um limiar de semelhança para sinalizar plágio ou aceitar a imagem como diferente.
-
-A solução inclui:
-
-- processamento de imagem em Python/OpenCV;
-- API REST em FastAPI;
-- interface em React com layout moderno e dinâmico;
-- análise comparativa entre duas imagens de texto;
-- reconstrução visual da leitura com recortes reais de cada letra;
-- suporte a deploy em ambiente de produção.
-
-## Arquitetura
-
-### Backend
-
-A lógica principal está em:
-
-- `backend/src/core/segmenters/improved_segmenter.py`
-- `backend/src/api/handlers/letter_segmenter_handler.py`
-- `backend/src/api/routes/index.py`
-
-O fluxo executado é:
-
-1. decodificação da imagem em base64;
-2. pré-processamento com binarização, contraste e ruído;
-3. detecção de componentes conectados;
-4. filtragem de regiões que não são letras;
-5. agrupamento por linha e por palavra;
-6. ordenação da leitura;
-7. geração dos recortes das letras;
-8. comparação com a segunda imagem usando similaridade de sequência.
-
-### Frontend
-
-Os pontos principais do frontend estão em:
-
-- `frontend/src/components/Segmenter/Segmenter.tsx`
-- `frontend/src/components/LetterGrid/LetterGrid.tsx`
-- `frontend/src/components/ControlPanel/ControlPanel.tsx`
-- `frontend/src/services/api.ts`
-
-A interface oferece:
-
-- painel esquerdo com configurações;
-- dois uploaders para imagem original e imagem de comparação;
-- botão para comparar conteúdo;
-- painel de similaridade com status de plágio ou aceitação;
-- área de texto reconstruído mostrando cada letra recortada em ordem de leitura.
-
-## Ajustes recentes
-
-### Correção da contagem de letras
-
-Foi ajustado o filtro de componentes para reduzir ruído e fragmentos que não são letras. O problema principal era a presença de regiões esparsas e pequenas, que estavam sendo aceitas como componentes válidos, inflando artificialmente a contagem.
-
-Principais correções:
-
-- aumento do critério mínimo de área útil;
-- validação por densidade do componente;
-- rejeição de formações muito esparsas ou de baixa cobertura interna;
-- preservação das letras reais sem exagerar no filtro.
-
-### Suporte a texto claro em fundo preto
-
-O pré-processamento também foi corrigido para imagens com letras claras sobre fundo preto. Antes, a binarização usava sempre uma máscara invertida, fazendo com que o fundo escuro fosse interpretado como primeiro plano e as letras fossem descartadas durante a detecção.
-
-Agora o sistema:
-
-- analisa a luminância das bordas da imagem para identificar o fundo predominante;
-- seleciona automaticamente a polaridade correta da binarização;
-- preserva letras claras em fundos escuros e letras escuras em fundos claros;
-- aplica a mesma filtragem de ruído e validação nos dois tipos de imagem.
-
-Foi incluído um teste de regressão em `backend/tests/test_segmenter.py` para garantir a detecção de texto claro em fundo preto.
-
-### Responsividade para telas menores
-
-A interface foi ajustada para dispositivos menores com:
-
-- empilhamento das colunas em telas estreitas;
-- controle de largura do painel lateral;
-- botões com largura total em mobile;
-- layout dos cards de comparação e métricas em modo coluna em telas pequenas.
-
-## Regras de comparação
-
-A lógica implementada usa um cálculo aproximado de similaridade com base na sequência detectada e na quantidade de letras que cada imagem contém.
-
-### Limiares
-
-- `>= 0.90` → plágio detectado
-- `< 0.70` → imagem aceita
-- `>= 0.70` e `< 0.90` → semelhança parcial
-
-Essa regra segue o comportamento solicitado: verificar se as imagens têm o mesmo conteúdo em 90% ou mais, se são muito diferentes ou se se diferenciam pela metade.
-
-## Texto reconstruído em ordem de leitura
-
-A área de exibição foi ajustada para mostrar cada letra recortada de fato, em sequência, em vez de placeholders como `L1`, `L2`, `L3`.
-
-Cada cartão da linha de leitura exibe:
-
-- a letra recortada em imagem;
-- o número do recorte;
-- a organização visual em ordem de leitura.
-
-## Exportação
-
-Ao clicar em baixar todas, o sistema gera um ZIP com:
-
-- `transcricao.txt` com a sequência organizada;
-- todos os recortes em `letras/`.
-
-## Testes e verificação
-
-O projeto possui testes automatizados em:
-
-- `backend/tests/test_segmenter.py`
-
-Os cenários cobertos incluem:
-
-- detecção de letras;
-- detecção de texto claro em fundo preto;
-- ordenação por palavras;
-- robustez a ruído;
-- leitura em ordem;
-- comparação de imagens com conteúdo idêntico.
-
-## Observações de qualidade
-
-### Quando a solução funciona melhor
-
-- imagens com contraste bom;
-- texto legível e nítido;
-- sem ruído excessivo;
-- fontes bem definidas;
-- linhas e palavras separadas com clareza.
-
-### Quando exige cuidado
-
-- imagens muito borradas;
-- texto sobre fundo complexo;
-- contraste muito baixo;
-- artefatos visuais e linhas decorativas;
-- letras muito pequenas ou distorcidas.
-
-## Como rodar em desenvolvimento
-
-```bash
-# instalar dependências
-make install
-
-# backend
-# ainda dentro de backend/
-rm -rf venv
-
-# volte pra raiz onde está o .venv bom
-cd ..
-
-# confirme que está ativado (deve mostrar (.venv))
-source .venv/Scripts/activate
-
-# instale as dependências do backend nesse venv
-cd backend
-pip install -r requirements.txt
-
-# rode o servidor como módulo
-python -m src.server
+A documentação completa e atualizada do projeto, incluindo MongoDB Atlas, histórico, deploy em Render/Vercel, segmentação e lógica de leitura, está em [GUIA.md](GUIA.md).
 
 
-# frontend
-cd frontend
-npm run dev
+- imagem original em base64;
+- nome do arquivo;
+- transcript em ordem de leitura;
+- recortes das letras;
+- metadados tais como quantidade de letras, confiança e tempo de processamento;
+- data de criação e atualização.
+
+A estrutura fica armazenada no MongoDB em uma coleção chamada `processed_images` por padrão.
+
+### 9. Consultar o histórico no frontend
+
+A interface agora expõe um painel de histórico com:
+
+- lista das imagens processadas;
+- miniatura da imagem;
+- data e hora da processagem;
+- transcrição do texto;
+- clique para carregar o histórico e visualizar as letras recortadas novamente;
+- área com scroll para navegar entre as letras quando houver muitas.
+
+### 10. Garantia de ordem das letras
+
+A regra de ordenação da leitura foi ajustada para preservar a sequência real do texto. Em um exemplo como `SAMPLE HERE`, a ordem final deve ser:
+
+```text
+S, A, M, P, L, E, H, E, R, E
 ```
+
+Isso é garantido pela separação de palavras na linha de leitura e pela ordenação por posição X dentro de cada palavra.
 
 ## Deploy em produção com Vercel + Render
 

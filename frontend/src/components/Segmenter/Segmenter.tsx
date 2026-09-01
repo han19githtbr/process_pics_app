@@ -7,8 +7,8 @@ import { LetterGrid } from '../LetterGrid';
 import { ControlPanel } from '../ControlPanel';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ErrorMessage } from '../common/ErrorMessage';
-import { ProcessingOptions, ComparisonResult } from '../../types';
-import { compareImages } from '../../services/api';
+import { ProcessingOptions, ComparisonResult, HistoryEntry, SegmentResult } from '../../types';
+import { compareImages, getProcessingHistory, getHistoryItem } from '../../services/api';
 import './Segmenter.css';
 
 export const Segmenter: React.FC = () => {
@@ -17,6 +17,10 @@ export const Segmenter: React.FC = () => {
   const { loading, error: segmentError, result, segment, reset } = useSegmenter();
   const [compareResult, setCompareResult] = React.useState<ComparisonResult | null>(null);
   const [compareLoading, setCompareLoading] = React.useState(false);
+  const [history, setHistory] = React.useState<HistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = React.useState(false);
+  const [selectedHistoryResult, setSelectedHistoryResult] = React.useState<SegmentResult | null>(null);
+  const displayedResult = selectedHistoryResult ?? result;
 
   const [options, setOptions] = React.useState<ProcessingOptions>({
     sensitivity: 0.44,
@@ -28,13 +32,32 @@ export const Segmenter: React.FC = () => {
     maxImageSize: 1800,
   });
 
+  const loadHistory = React.useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const data = await getProcessingHistory();
+      setHistory(data);
+    } catch {
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
   const handleOptionsChange = (newOptions: Partial<ProcessingOptions>) => {
     setOptions(prev => ({ ...prev, ...newOptions }));
   };
 
   const handleSegment = async () => {
     if (!sourceUpload.image) return;
-    await segment(sourceUpload.image, options);
+    const nextResult = await segment(sourceUpload.image, options, sourceUpload.file?.name);
+    if (nextResult) {
+      await loadHistory();
+    }
   };
 
   const handleCompare = async () => {
@@ -54,6 +77,37 @@ export const Segmenter: React.FC = () => {
     sourceUpload.resetImage();
     comparisonUpload.resetImage();
     setCompareResult(null);
+    setSelectedHistoryResult(null);
+  };
+
+  const handleHistorySelect = async (itemId: string) => {
+    try {
+      const item = await getHistoryItem(itemId);
+      if (!item) return;
+
+      const nextResult: SegmentResult = {
+        letters: (item.letters ?? []).map((letter, index) => ({
+          ...letter,
+          id: typeof letter.id === 'number' ? letter.id : index + 1,
+        })),
+        debugImage: item.imageData ?? '',
+        transcript: item.transcript ?? item.metadata?.transcript ?? '',
+        meta: {
+          width: 0,
+          height: 0,
+          totalLetters: item.metadata?.totalLetters ?? (item.letters?.length ?? 0),
+          processingTime: item.metadata?.processingTime ?? 0,
+          confidenceScore: item.metadata?.confidenceScore ?? 0,
+          transcript: item.metadata?.transcript ?? item.transcript ?? '',
+        },
+        confidence: item.metadata?.confidenceScore ?? 0,
+      };
+
+      setSelectedHistoryResult(nextResult);
+      setCompareResult(null);
+    } catch {
+      setSelectedHistoryResult(null);
+    }
   };
 
   const handleDownloadAll = async () => {
@@ -148,6 +202,38 @@ export const Segmenter: React.FC = () => {
             </button>
           </div>
 
+          <div className="history-panel">
+            <div className="history-header">
+              <h3>Histórico</h3>
+              <button type="button" className="history-refresh" onClick={() => void loadHistory()}>
+                {historyLoading ? 'Atualizando...' : 'Atualizar'}
+              </button>
+            </div>
+            <div className="history-list">
+              {history.length === 0 ? (
+                <p className="history-empty">Ainda não há imagens salvas no histórico.</p>
+              ) : (
+                history.map((entry) => (
+                  <button
+                    key={entry._id ?? entry.sourceName}
+                    type="button"
+                    className="history-item"
+                    onClick={() => void handleHistorySelect(entry._id ?? '')}
+                  >
+                    {entry.imageData && (
+                      <img src={entry.imageData} alt={entry.sourceName ?? 'Imagem processada'} className="history-thumb" />
+                    )}
+                    <span className="history-name">{entry.sourceName ?? 'Imagem processada'}</span>
+                    <span className="history-meta">
+                      {entry.createdAt ? new Date(entry.createdAt).toLocaleString('pt-BR') : 'Agora'}
+                    </span>
+                    <span className="history-transcript">{entry.transcript ?? 'Sem transcrição'}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+
           {loading && <LoadingSpinner />}
           {compareLoading && <LoadingSpinner />}
 
@@ -184,11 +270,11 @@ export const Segmenter: React.FC = () => {
             </div>
           )}
 
-          {result && (
+          {displayedResult && (
             <LetterGrid
-              letters={result.letters}
+              letters={displayedResult.letters}
               onDownload={handleDownloadAll}
-              metadata={result.meta}
+              metadata={displayedResult.meta}
             />
           )}
         </main>

@@ -2,7 +2,7 @@ import { Letter } from './letter';
 
 export interface SegmentResult {
   letters: Letter[];
-  debugImage: string;
+  debugImage?: string;
   transcript?: string;
   meta: {
     width: number;
@@ -10,8 +10,24 @@ export interface SegmentResult {
     totalLetters: number;
     processingTime: number;
     confidenceScore: number;
+    transcript?: string;
   };
-  confidence: number;
+  confidence?: number;
+}
+
+export interface HistoryEntry {
+  _id?: string;
+  imageData?: string;
+  sourceName?: string;
+  transcript?: string;
+  createdAt?: string;
+  letters?: Letter[];
+  metadata?: {
+    totalLetters?: number;
+    confidenceScore?: number;
+    processingTime?: number;
+    transcript?: string;
+  };
 }
 
 export interface ComparisonResult {
