@@ -139,8 +139,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               className={`mode-btn ${options.mode === 'academic' ? 'active' : ''}`}
               onClick={() => handleChange('mode', 'academic')}
             >
-              <span className="mode-btn-title">🎓 Acadêmico Puro</span>
-              <span className="mode-btn-desc">Exato do documento em PDF UFRRJ</span>
+              <span className="mode-btn-title">🎓 Baseado em trabalho Acadêmico</span>
+              <span className="mode-btn-desc">Processamento de Imagens</span>
             </button>
           </div>
         </div>
