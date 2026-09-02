@@ -160,7 +160,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         </div>
       </div>
 
-      <div className="button-group">
+      <div className="button-group button-group-stack">
         <button
           onClick={onSegment}
           disabled={loading || !hasImage}
@@ -169,18 +169,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           {loading ? '⏳ Processando...' : 'Segmentar'}
         </button>
         <button
-          onClick={onSave}
-          disabled={saveLoading || loading || !hasResult}
-          className="btn btn-secondary"
-        >
-          {saveLoading ? '⏳ Salvando...' : 'Salvar no histórico'}
-        </button>
-        <button
           onClick={onReset}
           disabled={loading}
           className="btn btn-secondary"
         >
           Limpar
+        </button>
+        <button
+          onClick={onSave}
+          disabled={saveLoading || loading || !hasResult}
+          className="btn btn-secondary"
+        >
+          {saveLoading ? '⏳ Salvando...' : 'Salvar no histórico'}
         </button>
       </div>
 

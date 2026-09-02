@@ -207,6 +207,11 @@
   margin-top: 20px;
 }
 
+.button-group-stack {
+  display: flex;
+  flex-direction: column;
+}
+
 .btn {
   flex: 1;
   padding: 13px 18px;
