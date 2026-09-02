@@ -52,6 +52,10 @@ class LetterSegmenterHandler:
             )
 
             if not item_id:
+                if self.mongodb_service.uri and not self.mongodb_service.is_enabled:
+                    return {
+                        'error': 'MongoDB indisponível. Verifique MONGODB_URI, rede, IP allowlist e permissões do banco.',
+                    }, 503
                 return {'error': 'Não foi possível salvar o item no histórico.'}, 500
 
             return {

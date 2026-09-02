@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -7,6 +8,8 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 load_dotenv(BASE_DIR / '.env')
+
+logger = logging.getLogger('mongodb_service')
 
 try:
     from bson import ObjectId
@@ -45,7 +48,11 @@ class MongoDBService:
             self.database = self.client[self.db_name]
             self.collection = self.database[self.collection_name]
             self.is_enabled = True
-        except Exception:
+        except Exception as exc:
+            logger.error(
+                'Falha ao conectar no MongoDB (uri configurada, mas conexão/ping falhou): %s',
+                exc,
+            )
             self.client = None
             self.database = None
             self.collection = None
@@ -79,34 +86,51 @@ class MongoDBService:
     ) -> Optional[str]:
         document = self.build_processing_document(image_data, original_name, transcript, letters, metadata)
 
+        if self.uri and not self.is_enabled:
+            return None
+
         if self.is_enabled and self.collection is not None:
             try:
                 result = self.collection.insert_one(document)
                 return str(result.inserted_id)
-            except PyMongoError:
-                pass
+            except PyMongoError as exc:
+                logger.error('Falha ao inserir item no histórico do MongoDB: %s', exc)
+                return None
 
-        item_id = f"local-{len(self._local_history) + 1}"
-        document['_id'] = item_id
-        self._local_history.insert(0, document)
-        return item_id
+        if not self.uri:
+            item_id = f"local-{len(self._local_history) + 1}"
+            document['_id'] = item_id
+            self._local_history.insert(0, document)
+            return item_id
+
+        return None
 
     def list_history(self, limit: int = 20) -> List[Dict[str, Any]]:
+        if self.uri and not self.is_enabled:
+            return []
+
         if self.is_enabled and self.collection is not None:
             try:
                 items = list(self.collection.find({}).sort('createdAt', -1).limit(limit))
                 for item in items:
                     item['_id'] = str(item.get('_id'))
                 return items
-            except PyMongoError:
-                pass
+            except PyMongoError as exc:
+                logger.error('Falha ao listar histórico do MongoDB: %s', exc)
+                return []
 
-        items = list(self._local_history)[:limit]
-        for item in items:
-            item['_id'] = str(item.get('_id', ''))
-        return items
+        if not self.uri:
+            items = list(self._local_history)[:limit]
+            for item in items:
+                item['_id'] = str(item.get('_id', ''))
+            return items
+
+        return []
 
     def get_history_item(self, item_id: str) -> Optional[Dict[str, Any]]:
+        if self.uri and not self.is_enabled:
+            return None
+
         if self.is_enabled and self.collection is not None:
             try:
                 object_id = ObjectId(item_id) if ObjectId is not None else item_id
@@ -115,14 +139,17 @@ class MongoDBService:
                     return None
                 item['_id'] = str(item.get('_id'))
                 return item
-            except (TypeError, ValueError, PyMongoError):
-                pass
+            except (TypeError, ValueError, PyMongoError) as exc:
+                logger.error('Falha ao buscar item %s no histórico do MongoDB: %s', item_id, exc)
+                return None
 
-        for item in self._local_history:
-            if str(item.get('_id')) == str(item_id):
-                item = dict(item)
-                item['_id'] = str(item.get('_id'))
-                return item
+        if not self.uri:
+            for item in self._local_history:
+                if str(item.get('_id')) == str(item_id):
+                    item = dict(item)
+                    item['_id'] = str(item.get('_id'))
+                    return item
+
         return None
 
     def get_collection_name(self) -> str:

@@ -19,6 +19,7 @@ export const Segmenter: React.FC = () => {
   const [compareResult, setCompareResult] = React.useState<ComparisonResult | null>(null);
   const [compareLoading, setCompareLoading] = React.useState(false);
   const [saveLoading, setSaveLoading] = React.useState(false);
+  const [saveError, setSaveError] = React.useState<string | null>(null);
   const [history, setHistory] = React.useState<HistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = React.useState(false);
   const [selectedHistoryResult, setSelectedHistoryResult] = React.useState<SegmentResult | null>(null);
@@ -90,6 +91,7 @@ export const Segmenter: React.FC = () => {
     if (!displayedResult) return;
 
     setSaveLoading(true);
+    setSaveError(null);
     try {
       const payload = {
         imageData: displayedResult.debugImage ?? sourceUpload.image ?? '',
@@ -101,6 +103,12 @@ export const Segmenter: React.FC = () => {
 
       await saveProcessingResult(payload);
       await loadHistory();
+    } catch (err: any) {
+      const backendMessage = err?.response?.data?.error;
+      setSaveError(
+        backendMessage ||
+          'Não foi possível salvar no histórico. Verifique a conexão com o backend/MongoDB.'
+      );
     } finally {
       setSaveLoading(false);
     }
@@ -251,6 +259,7 @@ export const Segmenter: React.FC = () => {
                 {historyLoading ? 'Atualizando...' : 'Atualizar'}
               </button>
             </div>
+            {saveError && <p className="history-error">{saveError}</p>}
             <div className="history-list">
               {history.length === 0 ? (
                 <p className="history-empty">Ainda não há imagens salvas no histórico.</p>

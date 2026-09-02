@@ -275,6 +275,16 @@
   padding: 10px 4px;
 }
 
+.history-error {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md, 8px);
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+  font-size: 0.85rem;
+}
+
 .comparison-panel {
   background: var(--bg-contrast);
   border-radius: var(--radius-lg);
