@@ -35,9 +35,10 @@ class ImprovedSegmenter(ILetterSegmenter):
         # Pré-processamento
         processed, scale = self.processor.resize_if_needed(image, self.options.max_image_size)
         binary = self.processor.preprocess(processed, self.options)
+        edges = self.processor.detect_edges(binary)
         
         # Detecção de componentes
-        components = self._detect_components(binary)
+        components = self._detect_components(binary, edges)
         
         # Filtragem
         filtered = self._filter_components(components, binary)
@@ -77,18 +78,20 @@ class ImprovedSegmenter(ILetterSegmenter):
                 'processing_time': processing_time,
                 'confidence_score': self._calculate_overall_confidence(validated),
                 'scale': scale,
+                'edge_pixels': int(cv2.countNonZero(edges)),
+                'warnings': self._build_quality_warnings(validated, components),
                 'transcript': transcript
             },
             transcript=transcript
         )
     
-    def _detect_components(self, binary: np.ndarray) -> List[Dict]:
-        """Detecta componentes conectados."""
+    def _detect_components(self, binary: np.ndarray, edges: Optional[np.ndarray] = None) -> List[Dict]:
+        """Detecta componentes e usa contornos Canny como evidência de borda."""
         num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary, 8)
         
         components = []
         for i in range(1, num_labels):
-            components.append({
+            component = {
                 'label': i,
                 'area': stats[i, cv2.CC_STAT_AREA],
                 'x': stats[i, cv2.CC_STAT_LEFT],
@@ -96,9 +99,59 @@ class ImprovedSegmenter(ILetterSegmenter):
                 'width': stats[i, cv2.CC_STAT_WIDTH],
                 'height': stats[i, cv2.CC_STAT_HEIGHT],
                 'centroid': (centroids[i][0], centroids[i][1])
-            })
+            }
+            if edges is not None:
+                crop = edges[
+                    component['y']:component['y'] + component['height'],
+                    component['x']:component['x'] + component['width']
+                ]
+                contours, _ = cv2.findContours(crop, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                component['contour_count'] = len(contours)
+                component['contour_area'] = max((cv2.contourArea(contour) for contour in contours), default=0.0)
+            components.extend(self._split_wide_component(component, binary))
         
         return components
+
+    def _split_wide_component(self, component: Dict, binary: np.ndarray) -> List[Dict]:
+        """Divide componentes largos em vales verticais claros, sem forçar cortes ambíguos."""
+        width = component['width']
+        height = component['height']
+        min_size = max(3, int(self.options.min_letter_size))
+        if width < max(2 * min_size, int(height * 1.8)):
+            return [component]
+
+        crop = binary[component['y']:component['y'] + height, component['x']:component['x'] + width]
+        projection = np.count_nonzero(crop, axis=0)
+        valleys = projection <= max(1, int(projection.max(initial=0) * 0.08))
+        cuts = np.flatnonzero(valleys)
+        if len(cuts) == 0:
+            return [component]
+
+        groups = []
+        start = 0
+        for cut in cuts:
+            if cut - start >= min_size:
+                groups.append((start, cut))
+                start = cut + 1
+        if width - start >= min_size:
+            groups.append((start, width))
+        if len(groups) < 2:
+            return [component]
+
+        split = []
+        for start, end in groups:
+            part = binary[component['y']:component['y'] + height, component['x'] + start:component['x'] + end]
+            area = int(cv2.countNonZero(part))
+            if area < max(24, min_size * min_size):
+                continue
+            split.append({
+                **component,
+                'x': component['x'] + start,
+                'width': end - start,
+                'area': area,
+                'centroid': (component['x'] + start + (end - start) / 2, component['centroid'][1]),
+            })
+        return split or [component]
     
     def _filter_components(self, components: List[Dict], binary: np.ndarray) -> List[Dict]:
         """Filtra componentes que não são letras, rejeitando ruído esparso e fragmentos sem densidade real."""
@@ -130,7 +183,8 @@ class ImprovedSegmenter(ILetterSegmenter):
                 comp['width'] >= min_size and
                 comp['height'] >= min_size and
                 comp['width'] <= max_size and
-                comp['height'] <= max_size
+                comp['height'] <= max_size and
+                density <= 0.92
             )
 
             if is_valid:
@@ -325,3 +379,15 @@ class ImprovedSegmenter(ILetterSegmenter):
         if not letters:
             return 0.0
         return sum(l.confidence for l in letters) / len(letters)
+
+    def _build_quality_warnings(self, letters: List[LetterBox], components: List[Dict]) -> List[str]:
+        """Expõe limites conhecidos do método para manter o resultado auditável."""
+        warnings = []
+        if not letters:
+            warnings.append('Nenhum componente com formato compatível foi encontrado.')
+        if any(component['width'] >= component['height'] * 2.5 for component in components):
+            warnings.append('Algumas regiões são muito largas e podem conter letras agrupadas ou elementos da imagem.')
+        if letters and self._calculate_overall_confidence(letters) < 0.75:
+            warnings.append('A confiança média é baixa; confirme visualmente os recortes antes de usar o resultado.')
+        warnings.append('A detecção depende de contraste, foco e separação entre caracteres; ruídos podem gerar falsos positivos.')
+        return warnings

@@ -80,6 +80,11 @@ class OpenCVProcessor(IImageProcessor):
     def binarize(self, image: np.ndarray, method: str = 'auto') -> np.ndarray:
         """Binariza a imagem."""
         return self.preprocess(image)
+
+    def detect_edges(self, binary: np.ndarray, low_threshold: int = 70,
+                     high_threshold: int = 150) -> np.ndarray:
+        """Detecta bordas com Canny, conforme o fluxo descrito no trabalho."""
+        return cv2.Canny(binary, low_threshold, high_threshold)
     
     def _remove_small_noise(self, binary: np.ndarray, sensitivity: float = 0.44) -> np.ndarray:
         """Remove pequenos ruídos da imagem binária, preservando letras pequenas em textos densos."""

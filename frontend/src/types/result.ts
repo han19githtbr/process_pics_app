@@ -10,6 +10,8 @@ export interface SegmentResult {
     totalLetters: number;
     processingTime: number;
     confidenceScore: number;
+    edgePixels?: number;
+    warnings?: string[];
     transcript?: string;
   };
   confidence?: number;

@@ -434,11 +434,26 @@ export const Segmenter: React.FC = () => {
           )}
 
           {displayedResult && (
-            <LetterGrid
-              letters={displayedResult.letters}
-              onDownload={handleDownloadAll}
-              metadata={displayedResult.meta}
-            />
+            <>
+              {displayedResult.meta.warnings && displayedResult.meta.warnings.length > 0 && (
+                <section className="quality-notice" aria-label="Limitações da análise">
+                  <div>
+                    <span className="quality-notice-label">Leitura responsável</span>
+                    <h3>Revise os recortes antes de concluir</h3>
+                  </div>
+                  <ul>
+                    {displayedResult.meta.warnings.map((warning) => (
+                      <li key={warning}>{warning}</li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              <LetterGrid
+                letters={displayedResult.letters}
+                onDownload={handleDownloadAll}
+                metadata={displayedResult.meta}
+              />
+            </>
           )}
         </main>
       </div>

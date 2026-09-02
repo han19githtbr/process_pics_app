@@ -96,6 +96,8 @@ class LetterSegmenterHandler:
                 'processingTime': result.metadata.get('processing_time'),
                 'confidenceScore': result.metadata.get('confidence_score'),
                 'scale': result.metadata.get('scale'),
+                'edgePixels': result.metadata.get('edge_pixels'),
+                'warnings': result.metadata.get('warnings', []),
                 'transcript': transcript,
             }
 
