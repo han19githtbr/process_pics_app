@@ -104,6 +104,7 @@ class LetterSegmenterHandler:
             payload = {
                 'letters': letters,
                 'debugImage': result.debug_image,
+                'steps': getattr(result, 'steps', []),
                 'meta': meta,
                 'transcript': transcript,
                 'confidence': result.confidence_score,

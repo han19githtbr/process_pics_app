@@ -87,29 +87,20 @@ class MongoDBService:
     ) -> Optional[str]:
         document = self.build_processing_document(image_data, original_name, transcript, letters, metadata)
 
-        if self.uri and not self.is_enabled:
-            return None
-
         if self.is_enabled and self.collection is not None:
             try:
                 result = self.collection.insert_one(document)
                 return str(result.inserted_id)
             except PyMongoError as exc:
                 logger.error('Falha ao inserir item no histórico do MongoDB: %s', exc)
-                return None
 
-        if not self.uri:
-            item_id = f"local-{len(self._local_history) + 1}"
-            document['_id'] = item_id
-            self._local_history.insert(0, document)
-            return item_id
-
-        return None
+        # Fallback para histórico local em memória caso Mongo remoto esteja inacessível ou sem URI
+        item_id = f"local-{len(self._local_history) + 1}"
+        document['_id'] = item_id
+        self._local_history.insert(0, document)
+        return item_id
 
     def list_history(self, limit: int = 20) -> List[Dict[str, Any]]:
-        if self.uri and not self.is_enabled:
-            return []
-
         if self.is_enabled and self.collection is not None:
             try:
                 items = list(self.collection.find({}).sort('createdAt', -1).limit(limit))
@@ -118,38 +109,28 @@ class MongoDBService:
                 return items
             except PyMongoError as exc:
                 logger.error('Falha ao listar histórico do MongoDB: %s', exc)
-                return []
 
-        if not self.uri:
-            items = list(self._local_history)[:limit]
-            for item in items:
-                item['_id'] = str(item.get('_id', ''))
-            return items
-
-        return []
+        items = list(self._local_history)[:limit]
+        for item in items:
+            item['_id'] = str(item.get('_id', ''))
+        return items
 
     def get_history_item(self, item_id: str) -> Optional[Dict[str, Any]]:
-        if self.uri and not self.is_enabled:
-            return None
-
         if self.is_enabled and self.collection is not None:
             try:
                 object_id = ObjectId(item_id) if ObjectId is not None else item_id
                 item = self.collection.find_one({'_id': object_id})
-                if item is None:
-                    return None
-                item['_id'] = str(item.get('_id'))
-                return item
-            except (TypeError, ValueError, PyMongoError) as exc:
-                logger.error('Falha ao buscar item %s no histórico do MongoDB: %s', item_id, exc)
-                return None
-
-        if not self.uri:
-            for item in self._local_history:
-                if str(item.get('_id')) == str(item_id):
-                    item = dict(item)
+                if item is not None:
                     item['_id'] = str(item.get('_id'))
                     return item
+            except (TypeError, ValueError, PyMongoError) as exc:
+                logger.error('Falha ao buscar item %s no histórico do MongoDB: %s', item_id, exc)
+
+        for item in self._local_history:
+            if str(item.get('_id')) == str(item_id):
+                item = dict(item)
+                item['_id'] = str(item.get('_id'))
+                return item
 
         return None
 
@@ -162,9 +143,6 @@ class MongoDBService:
 
         if not term:
             return self.list_history(limit=limit)
-
-        if self.uri and not self.is_enabled:
-            return []
 
         if self.is_enabled and self.collection is not None:
             try:
@@ -183,17 +161,13 @@ class MongoDBService:
                 return items
             except PyMongoError as exc:
                 logger.error('Falha ao buscar histórico no MongoDB: %s', exc)
-                return []
 
-        if not self.uri:
-            term_lower = term.lower()
-            items = [
-                item for item in self._local_history
-                if term_lower in str(item.get('sourceName', '')).lower()
-                or term_lower in str(item.get('transcript', '')).lower()
-            ][:limit]
-            for item in items:
-                item['_id'] = str(item.get('_id', ''))
-            return items
-
-        return []
+        term_lower = term.lower()
+        items = [
+            item for item in self._local_history
+            if term_lower in str(item.get('sourceName', '')).lower()
+            or term_lower in str(item.get('transcript', '')).lower()
+        ][:limit]
+        for item in items:
+            item['_id'] = str(item.get('_id', ''))
+        return items

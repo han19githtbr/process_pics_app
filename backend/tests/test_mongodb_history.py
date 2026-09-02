@@ -4,7 +4,7 @@ from src.services.mongodb_service import MongoDBService
 
 
 def test_mongodb_service_is_disabled_without_uri():
-    service = MongoDBService()
+    service = MongoDBService(uri='', collection_name='processed_images')
 
     assert service.is_enabled is False
     assert service.collection_name == 'processed_images'

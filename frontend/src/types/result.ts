@@ -1,9 +1,19 @@
 import { Letter } from './letter';
 
+export interface PipelineStep {
+  step: number;
+  title: string;
+  technique: string;
+  formula?: string;
+  description: string;
+  image: string;
+}
+
 export interface SegmentResult {
   letters: Letter[];
   debugImage?: string;
   transcript?: string;
+  steps?: PipelineStep[];
   meta: {
     width: number;
     height: number;
@@ -11,6 +21,9 @@ export interface SegmentResult {
     processingTime: number;
     confidenceScore: number;
     edgePixels?: number;
+    splits_count?: number;
+    filtered_count?: number;
+    mode?: string;
     warnings?: string[];
     transcript?: string;
   };

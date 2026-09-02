@@ -7,4 +7,12 @@ export interface ProcessingOptions {
   removeNoise?: boolean;
   enhanceContrast?: boolean;
   maxImageSize?: number;
+  mode?: 'enhanced' | 'academic';
+  splitGroupedLetters?: boolean;
+  filterNonLetters?: boolean;
+  cannyLow?: number;
+  cannyHigh?: number;
+  bilateralD?: number;
+  bilateralSigmaColor?: number;
+  bilateralSigmaSpace?: number;
 }

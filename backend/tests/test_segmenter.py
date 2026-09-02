@@ -126,3 +126,55 @@ def test_segmenter_detects_plagiarism_between_similar_text_images():
 
     assert comparison['similarity'] >= 0.9
     assert comparison['status'] == 'plagio_detectado'
+
+
+def test_segmenter_generates_pdf_pipeline_steps():
+    segmenter = ImprovedSegmenter(ProcessingOptions(min_letter_size=4))
+    image = _build_text_image("PDF Pipeline Steps")
+
+    result = segmenter.segment(image)
+
+    assert len(result.steps) == 7
+    step_titles = [s['title'] for s in result.steps]
+    assert any("Passo 1" in t for t in step_titles)
+    assert any("Passo 2" in t for t in step_titles)
+    assert any("Passo 3" in t for t in step_titles)
+    assert any("Passo 4" in t for t in step_titles)
+    assert any("Passo 5" in t for t in step_titles)
+    assert any("Passo 6" in t for t in step_titles)
+    assert any("Passo 7" in t for t in step_titles)
+
+    for step in result.steps:
+        assert step['image'].startswith('data:image/png;base64,')
+        assert step['technique']
+        assert step['description']
+
+
+def test_segmenter_splits_wide_grouped_component():
+    segmenter = ImprovedSegmenter(ProcessingOptions(split_grouped_letters=True, min_letter_size=4))
+    # Cria uma máscara binária com duas barras verticais conectadas por uma ponte fina
+    binary = np.zeros((40, 60), dtype=np.uint8)
+    binary[5:35, 10:22] = 255  # primeira letra
+    binary[5:35, 38:50] = 255  # segunda letra
+    binary[20:22, 22:38] = 255  # ponte fina conectando as duas
+
+    comp = {'x': 10, 'y': 5, 'width': 40, 'height': 30, 'area': int(np.count_nonzero(binary)), 'label': 1}
+    splits = segmenter._split_wide_component(comp, binary)
+
+    assert len(splits) >= 2
+
+
+def test_segmenter_rejects_horizontal_line_as_non_letter():
+    segmenter = ImprovedSegmenter(ProcessingOptions(filter_non_letters=True, min_letter_size=4))
+    image = np.zeros((100, 100), dtype=np.uint8)
+    components = [
+        # Linha horizontal muito fina e longa (sublinhado)
+        {'x': 5, 'y': 50, 'width': 80, 'height': 3, 'area': 240},
+        # Letra proporcional normal
+        {'x': 20, 'y': 20, 'width': 18, 'height': 24, 'area': 220},
+    ]
+
+    filtered = segmenter._filter_components(components, image)
+    assert len(filtered) == 1
+    assert filtered[0]['width'] == 18
+

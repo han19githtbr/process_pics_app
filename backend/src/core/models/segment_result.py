@@ -9,6 +9,7 @@ class SegmentResult:
     debug_image: str = ''
     metadata: Dict[str, Any] = field(default_factory=dict)
     transcript: str = ''
+    steps: List[Dict[str, Any]] = field(default_factory=list)
     
     @property
     def total_letters(self) -> int:

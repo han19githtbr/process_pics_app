@@ -5,6 +5,7 @@ import { useImageUpload } from '../../hooks/useImageUpload';
 import { ImageUploader } from '../ImageUploader';
 import { LetterGrid } from '../LetterGrid';
 import { ControlPanel } from '../ControlPanel';
+import { PipelineViewer } from '../PipelineViewer';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ErrorMessage } from '../common/ErrorMessage';
 import { ProcessingOptions, ComparisonResult, HistoryEntry, SegmentResult } from '../../types';
@@ -34,6 +35,9 @@ export const Segmenter: React.FC = () => {
     removeNoise: true,
     thresholdMode: 'auto',
     maxImageSize: 1800,
+    mode: 'enhanced',
+    splitGroupedLetters: true,
+    filterNonLetters: true,
   });
 
   const loadHistory = React.useCallback(async () => {
@@ -438,8 +442,8 @@ export const Segmenter: React.FC = () => {
               {displayedResult.meta.warnings && displayedResult.meta.warnings.length > 0 && (
                 <section className="quality-notice" aria-label="Limitações da análise">
                   <div>
-                    <span className="quality-notice-label">Leitura responsável</span>
-                    <h3>Revise os recortes antes de concluir</h3>
+                    <span className="quality-notice-label">Diagnóstico de Qualidade & Transparência</span>
+                    <h3>Análise e integridade dos recortes</h3>
                   </div>
                   <ul>
                     {displayedResult.meta.warnings.map((warning) => (
@@ -453,7 +457,22 @@ export const Segmenter: React.FC = () => {
                 onDownload={handleDownloadAll}
                 metadata={displayedResult.meta}
               />
+              <PipelineViewer
+                steps={displayedResult.steps}
+                warnings={displayedResult.meta.warnings}
+                splitsCount={displayedResult.meta.splits_count}
+                filteredCount={displayedResult.meta.filtered_count}
+                mode={options.mode}
+              />
             </>
+          )}
+
+          {!displayedResult && (
+            <PipelineViewer
+              steps={[]}
+              warnings={[]}
+              mode={options.mode}
+            />
           )}
         </main>
       </div>

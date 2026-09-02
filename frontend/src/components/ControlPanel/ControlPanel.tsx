@@ -123,7 +123,63 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
         ))}
 
+        <div className="mode-selector-group">
+          <label className="mode-selector-label">Modo de Processamento:</label>
+          <div className="mode-options-grid">
+            <button
+              type="button"
+              className={`mode-btn ${options.mode !== 'academic' ? 'active' : ''}`}
+              onClick={() => handleChange('mode', 'enhanced')}
+            >
+              <span className="mode-btn-title">✨ Aprimorado</span>
+              <span className="mode-btn-desc">PDF + Separação de letras e filtro de ruído</span>
+            </button>
+            <button
+              type="button"
+              className={`mode-btn ${options.mode === 'academic' ? 'active' : ''}`}
+              onClick={() => handleChange('mode', 'academic')}
+            >
+              <span className="mode-btn-title">🎓 Acadêmico Puro</span>
+              <span className="mode-btn-desc">Exato do documento em PDF UFRRJ</span>
+            </button>
+          </div>
+        </div>
+
         <div className="toggle-list">
+          <label className="toggle-item">
+            <input
+              type="checkbox"
+              checked={options.splitGroupedLetters !== false}
+              onChange={(e) =>
+                handleChange('splitGroupedLetters', e.target.checked)
+              }
+            />
+            <span className="toggle-copy">
+              <span className="toggle-headline">
+                <span className="toggle-icon" aria-hidden="true">🔤</span>
+                <strong>Separar letras coladas</strong>
+              </span>
+              <small>Desmembra grupos de caracteres via perfil de projeção vertical.</small>
+            </span>
+          </label>
+
+          <label className="toggle-item">
+            <input
+              type="checkbox"
+              checked={options.filterNonLetters !== false}
+              onChange={(e) =>
+                handleChange('filterNonLetters', e.target.checked)
+              }
+            />
+            <span className="toggle-copy">
+              <span className="toggle-headline">
+                <span className="toggle-icon" aria-hidden="true">🎯</span>
+                <strong>Filtrar elementos não-letras</strong>
+              </span>
+              <small>Rejeita linhas, molduras, sublinhados e ruídos que não são texto.</small>
+            </span>
+          </label>
+
           <label className="toggle-item">
             <input
               type="checkbox"

@@ -4,27 +4,34 @@ Aplicação de segmentação e comparação de conteúdo visual em imagens de te
 
 ## Visão geral
 
-Este projeto combina Python/OpenCV, FastAPI e React para:
+Este projeto é baseado no trabalho acadêmico **"Processamento de Imagens: Processamento de Imagens de Textos"** (UFRRJ — TM438, Prof. Bruno Dembogurski, autores Handy Claude Milliance & Deived William da Silva Azevedo) e combina Python/OpenCV, FastAPI e React para:
 
-- segmentar letras de uma imagem de texto;
-- reconstruir a sequência em ordem de leitura;
-- exibir cada letra recortada visualmente;
-- comparar duas imagens para medir similaridade de conteúdo;
-- classificar o resultado com thresholds de plágio e aceitação.
+- executar fielmente o pipeline de 7 etapas conceituais do trabalho acadêmico;
+- converter pixels RGB para tons de cinza com a fórmula de luminância $Y \leftarrow 0.299 \cdot R + 0.587 \cdot G + 0.114 \cdot B$;
+- aplicar suavização por Filtro Bilateral ($d=10, \sigma=75$) preservador de bordas;
+- binarizar via Método de Otsu com inversão `bitwise_not`;
+- detectar bordas via Algoritmo de Canny com limiares 70 e 150;
+- identificar contornos com compressão `cv2.CHAIN_APPROX_SIMPLE` e calcular `boundingRect`;
+- recortar individualmente as letras e reconstruir a sequência em ordem de leitura;
+- **desmembrar letras agrupadas** por análise de vales no perfil de projeção vertical de tinta;
+- **filtrar elementos não-letras** (linhas horizontais, molduras, blocos sólidos e poeiras de digitalização);
+- expor visualmente no Frontend todas as 7 etapas intermediárias geradas pelo OpenCV;
+- fornecer um painel de **Transparência e Honestidade Técnica** explicando imperfeições e causas de ruído;
+- comparar duas imagens para medir similaridade de conteúdo e detectar plágio;
+- manter histórico com persistência em MongoDB Atlas e fallback local em memória;
+- exportar os recortes em arquivo ZIP.
 
-## Funcionalidades implementadas
+## Pipeline do Trabalho Acadêmico (PDF UFRRJ)
 
-- Segmentação robusta de letras por componentes conectados
-- Organização correta por linha e por palavra
-- Exibição dos recortes individuais em uma grade visual
-- Texto reconstruído mostrando os recortes reais da imagem, sem placeholders de L1/L2/L3
-- Comparação entre duas imagens com cálculo percentual de similaridade
-- Classificação automática:
-  - > 90%: plágio detectado
-  - < 70%: imagem aceita
-  - entre 70% e 90%: semelhança parcial
-- Exportação dos recortes em ZIP
-- Interface moderna com painel de configuração e análise comparativa
+| Passo | Etapa | Técnica OpenCV / Conceito | Propósito |
+| :--- | :--- | :--- | :--- |
+| **1** | **Imagem Load** | `cv2.imread` (matriz NumPy $H \times W \times 3$) | Carregamento da imagem em array com profundidade de cor de 24 bits. |
+| **2** | **Tons de Cinza** | $Y \leftarrow 0.299R + 0.587G + 0.114B$ (`cv2.cvtColor`) | Representa a intensidade luminosa de cada pixel em um único valor [0..255]. |
+| **3** | **Filtro Bilateral** | `cv2.bilateralFilter(gray, 10, 75, 75)` | Suavização que remove ruído de alta frequência preservando a nitidez das arestas. |
+| **4** | **Binarização** | Método de Otsu + `cv2.bitwise_not` | Limiar estatístico ótimo $T$ para isolar o texto do fundo. |
+| **5** | **Detecção de Bordas** | `cv2.Canny(bin, 70, 150)` | Operador direcional com derivadas de Sobel e histerese. |
+| **6** | **Contornos** | `cv2.findContours(RETR_EXTERNAL, CHAIN_APPROX_SIMPLE)` | Rastreamento de fronteiras com compressão de pontos redundantes. |
+| **7** | **Recorte & Leitura** | `x,y,w,h = boundingRect(c); curt = img[y:y+h, x:x+w]` | Extração matricial individual e ordenação por linha/palavra. |
 
 ## Stack
 
