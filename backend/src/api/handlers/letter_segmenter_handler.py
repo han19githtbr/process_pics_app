@@ -32,6 +32,9 @@ class LetterSegmenterHandler:
     def list_history(self, limit: int = 20):
         return self.mongodb_service.list_history(limit=limit)
 
+    def search_history(self, query: str, limit: int = 20):
+        return self.mongodb_service.search_history(query=query, limit=limit)
+
     def save_history_item(self, data: Dict[str, Any]) -> Dict[str, Any]:
         try:
             image_data = data.get('imageData') or data.get('image')

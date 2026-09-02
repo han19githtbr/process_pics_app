@@ -8,7 +8,7 @@ import { ControlPanel } from '../ControlPanel';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ErrorMessage } from '../common/ErrorMessage';
 import { ProcessingOptions, ComparisonResult, HistoryEntry, SegmentResult } from '../../types';
-import { compareImages, getProcessingHistory, getHistoryItem, saveProcessingResult } from '../../services/api';
+import { compareImages, getProcessingHistory, searchProcessingHistory, getHistoryItem, saveProcessingResult } from '../../services/api';
 import './Segmenter.css';
 
 export const Segmenter: React.FC = () => {
@@ -22,6 +22,7 @@ export const Segmenter: React.FC = () => {
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [history, setHistory] = React.useState<HistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedHistoryResult, setSelectedHistoryResult] = React.useState<SegmentResult | null>(null);
   const displayedResult = selectedHistoryResult ?? result;
 
@@ -47,13 +48,63 @@ export const Segmenter: React.FC = () => {
     }
   }, []);
 
+  const runHistorySearch = React.useCallback(async (query: string) => {
+    setHistoryLoading(true);
+    try {
+      const data = await searchProcessingHistory(query);
+      setHistory(data);
+    } catch {
+      setHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
   React.useEffect(() => {
-    void loadHistory();
-  }, [loadHistory]);
+    const query = searchQuery.trim();
+
+    if (!query) {
+      void loadHistory();
+      return;
+    }
+
+    const debounce = setTimeout(() => {
+      void runHistorySearch(query);
+    }, 350);
+
+    return () => clearTimeout(debounce);
+  }, [searchQuery, loadHistory, runHistorySearch]);
+
+  const handleHistoryRefresh = () => {
+    const query = searchQuery.trim();
+    if (query) {
+      void runHistorySearch(query);
+    } else {
+      void loadHistory();
+    }
+  };
+
+  const handleClearSearch = () => setSearchQuery('');
+
+  const highlightMatch = (text: string, query: string): React.ReactNode => {
+    const term = query.trim();
+    if (!term) return text;
+
+    const index = text.toLowerCase().indexOf(term.toLowerCase());
+    if (index === -1) return text;
+
+    return (
+      <>
+        {text.slice(0, index)}
+        <mark className="history-highlight">{text.slice(index, index + term.length)}</mark>
+        {text.slice(index + term.length)}
+      </>
+    );
+  };
 
   const handleOptionsChange = (newOptions: Partial<ProcessingOptions>) => {
     setOptions(prev => ({ ...prev, ...newOptions }));
@@ -63,7 +114,7 @@ export const Segmenter: React.FC = () => {
     if (!sourceUpload.image) return;
     const nextResult = await segment(sourceUpload.image, options, sourceUpload.file?.name);
     if (nextResult) {
-      await loadHistory();
+      handleHistoryRefresh();
     }
   };
 
@@ -102,7 +153,7 @@ export const Segmenter: React.FC = () => {
       };
 
       await saveProcessingResult(payload);
-      await loadHistory();
+      handleHistoryRefresh();
     } catch (err: any) {
       const backendMessage = err?.response?.data?.error;
       setSaveError(
@@ -255,26 +306,67 @@ export const Segmenter: React.FC = () => {
           <div className="history-panel">
             <div className="history-header">
               <h3>Histórico</h3>
-              <button type="button" className="history-refresh" onClick={() => void loadHistory()}>
+              <button type="button" className="history-refresh" onClick={handleHistoryRefresh}>
                 {historyLoading ? 'Atualizando...' : 'Atualizar'}
               </button>
             </div>
+
+            <div className={`history-search ${searchQuery ? 'has-value' : ''}`}>
+              <svg className="history-search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <circle cx="7" cy="7" r="5.25" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M11 11L14.5 14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              <input
+                type="text"
+                className="history-search-input"
+                placeholder="Buscar por nome do arquivo salvo..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                aria-label="Buscar imagens salvas no histórico"
+              />
+              {historyLoading && searchQuery && (
+                <span className="history-search-spinner" aria-hidden="true" />
+              )}
+              {searchQuery && !historyLoading && (
+                <button
+                  type="button"
+                  className="history-search-clear"
+                  onClick={handleClearSearch}
+                  aria-label="Limpar busca"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {searchQuery.trim() && !historyLoading && (
+              <p className="history-search-status">
+                {history.length > 0
+                  ? `${history.length} ${history.length === 1 ? 'resultado encontrado' : 'resultados encontrados'} para "${searchQuery.trim()}"`
+                  : `Nenhuma imagem encontrada para "${searchQuery.trim()}".`}
+              </p>
+            )}
+
             {saveError && <p className="history-error">{saveError}</p>}
+
             <div className="history-list">
-              {history.length === 0 ? (
+              {history.length === 0 && !searchQuery.trim() ? (
                 <p className="history-empty">Ainda não há imagens salvas no histórico.</p>
               ) : (
-                history.map((entry) => (
+                history.map((entry, index) => (
                   <button
                     key={entry._id ?? entry.sourceName}
                     type="button"
                     className="history-item"
+                    style={{ animationDelay: `${index * 35}ms` }}
                     onClick={() => void handleHistorySelect(entry._id ?? '')}
                   >
                     {entry.imageData && (
                       <img src={entry.imageData} alt={entry.sourceName ?? 'Imagem processada'} className="history-thumb" />
                     )}
-                    <span className="history-name">{entry.sourceName ?? 'Imagem processada'}</span>
+                    <span className="history-name">
+                      {highlightMatch(entry.sourceName ?? 'Imagem processada', searchQuery)}
+                    </span>
                     <span className="history-meta">
                       {entry.createdAt ? new Date(entry.createdAt).toLocaleString('pt-BR') : 'Agora'}
                     </span>
@@ -298,6 +390,7 @@ export const Segmenter: React.FC = () => {
                     ) : (
                       <span className="history-transcript">Sem recortes salvos</span>
                     )}
+                    <span className="history-view-hint">Ver recortes →</span>
                   </button>
                 ))
               )}

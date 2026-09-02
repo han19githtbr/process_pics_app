@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -154,3 +155,45 @@ class MongoDBService:
 
     def get_collection_name(self) -> str:
         return self.collection_name
+
+    def search_history(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """Busca itens do histórico pelo nome do arquivo salvo."""
+        term = (query or '').strip()
+
+        if not term:
+            return self.list_history(limit=limit)
+
+        if self.uri and not self.is_enabled:
+            return []
+
+        if self.is_enabled and self.collection is not None:
+            try:
+                pattern = re.escape(term)
+                mongo_filter = {
+                    '$or': [
+                        {'sourceName': {'$regex': pattern, '$options': 'i'}},
+                        {'transcript': {'$regex': pattern, '$options': 'i'}},
+                    ]
+                }
+                items = list(
+                    self.collection.find(mongo_filter).sort('createdAt', -1).limit(limit)
+                )
+                for item in items:
+                    item['_id'] = str(item.get('_id'))
+                return items
+            except PyMongoError as exc:
+                logger.error('Falha ao buscar histórico no MongoDB: %s', exc)
+                return []
+
+        if not self.uri:
+            term_lower = term.lower()
+            items = [
+                item for item in self._local_history
+                if term_lower in str(item.get('sourceName', '')).lower()
+                or term_lower in str(item.get('transcript', '')).lower()
+            ][:limit]
+            for item in items:
+                item['_id'] = str(item.get('_id', ''))
+            return items
+
+        return []

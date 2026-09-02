@@ -44,6 +44,13 @@ export const getProcessingHistory = async (): Promise<HistoryEntry[]> => {
   return response.data?.items ?? [];
 };
 
+export const searchProcessingHistory = async (query: string): Promise<HistoryEntry[]> => {
+  const response = await axios.get(`${API_URL}/history/search`, {
+    params: { q: query },
+  });
+  return response.data?.items ?? [];
+};
+
 export const saveProcessingResult = async (payload: {
   imageData?: string;
   sourceName?: string;

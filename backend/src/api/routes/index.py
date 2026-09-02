@@ -28,6 +28,12 @@ async def list_history():
     return {"items": handler.list_history(limit=20)}
 
 
+@router.get("/history/search")
+async def search_history(q: str = ""):
+    """Busca itens do histórico salvo pelo nome do arquivo ou transcrição."""
+    return {"items": handler.search_history(query=q, limit=20)}
+
+
 @router.post("/history/save")
 async def save_history(request: Request):
     """Salva manualmente uma imagem processada e suas letras no histórico."""
