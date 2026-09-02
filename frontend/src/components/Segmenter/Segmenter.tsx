@@ -278,7 +278,26 @@ export const Segmenter: React.FC = () => {
                     <span className="history-meta">
                       {entry.createdAt ? new Date(entry.createdAt).toLocaleString('pt-BR') : 'Agora'}
                     </span>
-                    <span className="history-transcript">{entry.transcript ?? 'Sem transcrição'}</span>
+                    {entry.letters && entry.letters.length > 0 ? (
+                      <span className="history-letters-strip">
+                        {entry.letters.map((letter, index) =>
+                          letter.image ? (
+                            <img
+                              key={letter.id ?? index}
+                              src={letter.image}
+                              alt={`Letra recortada ${letter.id ?? index + 1}`}
+                              className="history-letter-thumb"
+                            />
+                          ) : (
+                            <span key={letter.id ?? index} className="history-letter-thumb-placeholder">
+                              {letter.id ?? index + 1}
+                            </span>
+                          )
+                        )}
+                      </span>
+                    ) : (
+                      <span className="history-transcript">Sem recortes salvos</span>
+                    )}
                   </button>
                 ))
               )}

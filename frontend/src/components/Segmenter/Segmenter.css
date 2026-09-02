@@ -269,6 +269,36 @@
   text-overflow: ellipsis;
 }
 
+.history-letters-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 74px;
+  overflow: hidden;
+}
+
+.history-letter-thumb {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.history-letter-thumb-placeholder {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.7rem;
+  color: var(--muted-text);
+}
+
 .history-empty {
   margin: 0;
   color: var(--muted-text);
