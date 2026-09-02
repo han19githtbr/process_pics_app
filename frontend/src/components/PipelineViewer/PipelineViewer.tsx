@@ -31,7 +31,7 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
             className={`pipeline-tab-btn ${activeTab === 'steps' ? 'active' : ''}`}
             onClick={() => setActiveTab('steps')}
           >
-            🔬 Pipeline do Trabalho Acadêmico (PDF UFRRJ)
+            🔬 Pipeline de Trabalho Acadêmico
             {steps.length > 0 && <span className="tab-badge">{steps.length} etapas</span>}
           </button>
           <button
@@ -46,7 +46,7 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
 
         <div className="pipeline-mode-indicator">
           <span className="mode-tag">
-            Modo atual: <strong>{mode === 'academic' ? 'PDF Puro (Acadêmico)' : 'Aprimorado (PDF + IA de Precisão)'}</strong>
+            Modo atual: <strong>{mode === 'academic' ? 'PDF Puro (Acadêmico)' : 'Aprimorado (IA de Precisão)'}</strong>
           </span>
         </div>
       </div>
@@ -55,7 +55,7 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
         <div className="pipeline-steps-content">
           {steps.length === 0 ? (
             <div className="pipeline-empty">
-              <p>Processe uma imagem para visualizar todas as 7 etapas intermediárias definidas no trabalho em PDF.</p>
+              <p>Processe uma imagem para visualizar todas as 7 etapas intermediárias.</p>
             </div>
           ) : (
             <>
@@ -104,7 +104,7 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
                       )}
 
                       <div className="step-description-text">
-                        <h4>Fundamentação Técnica do Trabalho:</h4>
+                        <h4>Fundamentação Técnica:</h4>
                         <p>{currentStep.description}</p>
                       </div>
 
@@ -201,11 +201,11 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
           <div className="academic-quote-box">
             <span className="quote-icon">📜</span>
             <div className="quote-text">
-              <strong>Citação Oficial do Documento Acadêmico (UFRRJ - TM438):</strong>
+              <strong>Citação Oficial do Documento</strong>
               <em>
                 "O algoritmo funciona para todas as imagens que estão na pasta, mas é mais eficiente no caso das imagens que são compostas por palavras ou letras maiores."
               </em>
-              <span className="quote-author">— Trabalho de Processamento de Imagens, Handy Claude Milliance & Deived William (Prof. Bruno Dembogurski).</span>
+              <span className="quote-author">— Sistema de Processamento de Imagens.</span>
             </div>
           </div>
 

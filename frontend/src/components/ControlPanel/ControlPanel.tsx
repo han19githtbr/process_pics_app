@@ -132,7 +132,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               onClick={() => handleChange('mode', 'enhanced')}
             >
               <span className="mode-btn-title">✨ Aprimorado</span>
-              <span className="mode-btn-desc">PDF + Separação de letras e filtro de ruído</span>
+              <span className="mode-btn-desc">Separação de letras e filtro de ruído</span>
             </button>
             <button
               type="button"
