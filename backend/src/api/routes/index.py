@@ -28,6 +28,14 @@ async def list_history():
     return {"items": handler.list_history(limit=20)}
 
 
+@router.post("/history/save")
+async def save_history(request: Request):
+    """Salva manualmente uma imagem processada e suas letras no histórico."""
+    data = await request.json()
+    result, status_code = handler.save_history_item(data)
+    return JSONResponse(content=result, status_code=status_code)
+
+
 @router.get("/history/{item_id}")
 async def get_history_item(item_id: str):
     """Retorna uma imagem processada específica do histórico."""

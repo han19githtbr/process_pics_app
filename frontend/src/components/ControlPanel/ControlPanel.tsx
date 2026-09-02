@@ -6,18 +6,24 @@ interface ControlPanelProps {
   options: ProcessingOptions;
   onChange: (options: Partial<ProcessingOptions>) => void;
   onSegment: () => void;
+  onSave: () => void;
   onReset: () => void;
   loading: boolean;
+  saveLoading: boolean;
   hasImage: boolean;
+  hasResult: boolean;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
   options,
   onChange,
   onSegment,
+  onSave,
   onReset,
   loading,
+  saveLoading,
   hasImage,
+  hasResult,
 }) => {
   const handleChange = <K extends keyof ProcessingOptions>(
     key: K,
@@ -161,6 +167,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           className="btn btn-primary"
         >
           {loading ? '⏳ Processando...' : 'Segmentar'}
+        </button>
+        <button
+          onClick={onSave}
+          disabled={saveLoading || loading || !hasResult}
+          className="btn btn-secondary"
+        >
+          {saveLoading ? '⏳ Salvando...' : 'Salvar no histórico'}
         </button>
         <button
           onClick={onReset}

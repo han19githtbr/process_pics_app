@@ -32,6 +32,39 @@ class LetterSegmenterHandler:
     def list_history(self, limit: int = 20):
         return self.mongodb_service.list_history(limit=limit)
 
+    def save_history_item(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            image_data = data.get('imageData') or data.get('image')
+            if not image_data:
+                return {'error': 'Envie uma imagem para salvar no histórico.'}, 400
+
+            original_name = str(data.get('sourceName') or data.get('fileName') or 'imagem-processada.png').strip() or 'imagem-processada.png'
+            transcript = data.get('transcript') or ''
+            letters = data.get('letters') or []
+            metadata = data.get('metadata') or {}
+
+            item_id = self.mongodb_service.save_processing_result(
+                image_data=image_data,
+                original_name=original_name,
+                transcript=transcript,
+                letters=letters,
+                metadata=metadata,
+            )
+
+            if not item_id:
+                return {'error': 'Não foi possível salvar o item no histórico.'}, 500
+
+            return {
+                '_id': item_id,
+                'imageData': image_data,
+                'sourceName': original_name,
+                'transcript': transcript,
+                'letters': letters,
+                'metadata': metadata,
+            }, 200
+        except Exception as e:
+            return {'error': 'Falha ao salvar a imagem no histórico.', 'detail': str(e)}, 500
+
     def get_history_item(self, item_id: str):
         return self.mongodb_service.get_history_item(item_id)
 

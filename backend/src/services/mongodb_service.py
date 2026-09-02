@@ -1,10 +1,12 @@
 import os
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(BASE_DIR / '.env')
 
 try:
     from bson import ObjectId
@@ -32,6 +34,7 @@ class MongoDBService:
         self.database = None
         self.collection = None
         self.is_enabled = False
+        self._local_history: List[Dict[str, Any]] = []
 
         if not self.uri or MongoClient is None:
             return
@@ -74,41 +77,53 @@ class MongoDBService:
         letters: List[Dict[str, Any]],
         metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[str]:
-        if not self.is_enabled or self.collection is None:
-            return None
-
         document = self.build_processing_document(image_data, original_name, transcript, letters, metadata)
-        try:
-            result = self.collection.insert_one(document)
-            return str(result.inserted_id)
-        except PyMongoError:
-            return None
+
+        if self.is_enabled and self.collection is not None:
+            try:
+                result = self.collection.insert_one(document)
+                return str(result.inserted_id)
+            except PyMongoError:
+                pass
+
+        item_id = f"local-{len(self._local_history) + 1}"
+        document['_id'] = item_id
+        self._local_history.insert(0, document)
+        return item_id
 
     def list_history(self, limit: int = 20) -> List[Dict[str, Any]]:
-        if not self.is_enabled or self.collection is None:
-            return []
+        if self.is_enabled and self.collection is not None:
+            try:
+                items = list(self.collection.find({}).sort('createdAt', -1).limit(limit))
+                for item in items:
+                    item['_id'] = str(item.get('_id'))
+                return items
+            except PyMongoError:
+                pass
 
-        try:
-            items = list(self.collection.find({}).sort('createdAt', -1).limit(limit))
-            for item in items:
-                item['_id'] = str(item.get('_id'))
-            return items
-        except PyMongoError:
-            return []
+        items = list(self._local_history)[:limit]
+        for item in items:
+            item['_id'] = str(item.get('_id', ''))
+        return items
 
     def get_history_item(self, item_id: str) -> Optional[Dict[str, Any]]:
-        if not self.is_enabled or self.collection is None:
-            return None
+        if self.is_enabled and self.collection is not None:
+            try:
+                object_id = ObjectId(item_id) if ObjectId is not None else item_id
+                item = self.collection.find_one({'_id': object_id})
+                if item is None:
+                    return None
+                item['_id'] = str(item.get('_id'))
+                return item
+            except (TypeError, ValueError, PyMongoError):
+                pass
 
-        try:
-            object_id = ObjectId(item_id) if ObjectId is not None else item_id
-            item = self.collection.find_one({'_id': object_id})
-            if item is None:
-                return None
-            item['_id'] = str(item.get('_id'))
-            return item
-        except (TypeError, ValueError, PyMongoError):
-            return None
+        for item in self._local_history:
+            if str(item.get('_id')) == str(item_id):
+                item = dict(item)
+                item['_id'] = str(item.get('_id'))
+                return item
+        return None
 
     def get_collection_name(self) -> str:
         return self.collection_name

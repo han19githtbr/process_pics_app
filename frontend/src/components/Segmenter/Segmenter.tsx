@@ -8,7 +8,7 @@ import { ControlPanel } from '../ControlPanel';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ErrorMessage } from '../common/ErrorMessage';
 import { ProcessingOptions, ComparisonResult, HistoryEntry, SegmentResult } from '../../types';
-import { compareImages, getProcessingHistory, getHistoryItem } from '../../services/api';
+import { compareImages, getProcessingHistory, getHistoryItem, saveProcessingResult } from '../../services/api';
 import './Segmenter.css';
 
 export const Segmenter: React.FC = () => {
@@ -18,6 +18,7 @@ export const Segmenter: React.FC = () => {
   const { loading, error: segmentError, result, segment, reset } = useSegmenter();
   const [compareResult, setCompareResult] = React.useState<ComparisonResult | null>(null);
   const [compareLoading, setCompareLoading] = React.useState(false);
+  const [saveLoading, setSaveLoading] = React.useState(false);
   const [history, setHistory] = React.useState<HistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = React.useState(false);
   const [selectedHistoryResult, setSelectedHistoryResult] = React.useState<SegmentResult | null>(null);
@@ -83,6 +84,26 @@ export const Segmenter: React.FC = () => {
     comparisonUpload.resetImage();
     setCompareResult(null);
     setSelectedHistoryResult(null);
+  };
+
+  const handleSaveHistory = async () => {
+    if (!displayedResult) return;
+
+    setSaveLoading(true);
+    try {
+      const payload = {
+        imageData: displayedResult.debugImage ?? sourceUpload.image ?? '',
+        sourceName: sourceUpload.file?.name ?? 'imagem-processada.png',
+        transcript: displayedResult.transcript ?? '',
+        letters: displayedResult.letters ?? [],
+        metadata: displayedResult.meta ?? {},
+      };
+
+      await saveProcessingResult(payload);
+      await loadHistory();
+    } finally {
+      setSaveLoading(false);
+    }
   };
 
   const handleHistorySelect = async (itemId: string) => {
@@ -177,9 +198,12 @@ export const Segmenter: React.FC = () => {
             options={options}
             onChange={handleOptionsChange}
             onSegment={handleSegment}
+            onSave={handleSaveHistory}
             onReset={handleReset}
             loading={loading || compareLoading}
+            saveLoading={saveLoading}
             hasImage={!!sourceUpload.image}
+            hasResult={!!displayedResult?.letters?.length}
           />
         </aside>
 

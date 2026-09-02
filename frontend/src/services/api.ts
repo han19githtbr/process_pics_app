@@ -44,6 +44,22 @@ export const getProcessingHistory = async (): Promise<HistoryEntry[]> => {
   return response.data?.items ?? [];
 };
 
+export const saveProcessingResult = async (payload: {
+  imageData?: string;
+  sourceName?: string;
+  transcript?: string;
+  letters?: Array<Record<string, any>>;
+  metadata?: Record<string, any>;
+}): Promise<HistoryEntry | null> => {
+  const response = await axios.post(`${API_URL}/history/save`, payload, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  return response.data ?? null;
+};
+
 export const getHistoryItem = async (itemId: string): Promise<HistoryEntry | null> => {
   const response = await axios.get(`${API_URL}/history/${itemId}`);
   return response.data ?? null;
