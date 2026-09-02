@@ -1,57 +1,80 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 
+/*
+  Paleta redesenhada — Pattern Checker
+  Base grafite neutra + um único acento de marca (índigo).
+  Cores semânticas (sucesso/alerta/perigo) ficam reservadas para os
+  estados reais de comparação (aceita / parcial / plágio), em vez de
+  serem usadas como decoração espalhada pela interface.
+*/
+
 :root {
-  --primary-color: #ff5a8a;
-  --primary-dark: #dd3d73;
-  --secondary-color: #16d7c8;
-  --secondary-dark: #0ea7a2;
-  --accent-color: #ffd166;
-  --accent-purple: #2d1e54;
+  /* acento de marca — usado com moderação em CTAs e destaques */
+  --accent-color: #5b7cfa;
+  --accent-color-dark: #4361ee;
+  --accent-soft: rgba(91, 124, 250, 0.16);
 
-  --bg-page: #07111d;
-  --bg-page-2: #0b1326;
-  --bg-panel: rgba(15, 23, 42, 0.76);
-  --bg-panel-strong: rgba(20, 31, 52, 0.9);
-  --bg-panel-soft: rgba(255, 255, 255, 0.04);
-  --bg-card: rgba(255, 255, 255, 0.05);
-  --bg-input: rgba(255, 255, 255, 0.06);
-  --bg-contrast: #17233f;
-  --bg-contrast-2: #215d6e;
+  /* aliases mantidos por compatibilidade com os componentes existentes */
+  --primary-color: var(--accent-color);
+  --primary-dark: var(--accent-color-dark);
+  --secondary-color: #5b7cfa;
+  --secondary-dark: #4361ee;
 
-  --ink: #09111f;
-  --text-color: #ecf4ff;
-  --heading-color: #edf6ff;
-  --muted-text: #9db1cf;
-  --muted-text-strong: #dfe9ff;
-  --border-color: rgba(148, 163, 184, 0.18);
-  --shadow: 0 18px 45px rgba(2, 6, 23, 0.35);
-  --shadow-lg: 0 28px 60px rgba(2, 6, 23, 0.55);
-  --glow-primary: 0 0 0 4px rgba(255, 90, 138, 0.18);
-  --glow-secondary: 0 0 0 4px rgba(22, 215, 200, 0.18);
+  /* cores semânticas — mapeiam os 3 status de comparação */
+  --status-success: #34c78a;
+  --status-warning: #e2a53a;
+  --status-danger: #ef5b5b;
 
-  --radius: 18px;
-  --transition: 180ms cubic-bezier(.4,0,.2,1);
+  --bg-page: #0e1015;
+  --bg-page-2: #14171d;
+  --bg-panel: rgba(255, 255, 255, 0.035);
+  --bg-panel-strong: #1a1d24;
+  --bg-panel-soft: rgba(255, 255, 255, 0.025);
+  --bg-card: rgba(255, 255, 255, 0.045);
+  --bg-input: rgba(255, 255, 255, 0.055);
+  --bg-contrast: #1b212c;
+  --bg-contrast-2: #212938;
+  --card-background: var(--bg-panel-strong);
+
+  --ink: #0b0d11;
+  --text-color: #e6e8ee;
+  --heading-color: #f5f6f8;
+  --muted-text: #8b93a4;
+  --muted-text-strong: #c8cedb;
+  --border-color: rgba(255, 255, 255, 0.09);
+
+  --shadow: 0 12px 28px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 24px 48px rgba(0, 0, 0, 0.42);
+  --glow-accent: 0 0 0 4px var(--accent-soft);
+
+  --radius-sm: 10px;
+  --radius: 16px;
+  --radius-lg: 22px;
+  --transition: 160ms cubic-bezier(.4,0,.2,1);
 }
 
 :root[data-theme='light'] {
-  --bg-page: #edf4ff;
-  --bg-page-2: #f8fbff;
-  --bg-panel: rgba(255, 255, 255, 0.9);
-  --bg-panel-strong: rgba(255, 255, 255, 0.98);
-  --bg-panel-soft: rgba(109, 94, 246, 0.04);
-  --bg-card: rgba(13, 24, 40, 0.035);
-  --bg-input: rgba(15, 23, 42, 0.04);
-  --bg-contrast: #eef3ff;
-  --bg-contrast-2: #dff7ff;
+  --accent-soft: rgba(91, 124, 250, 0.1);
 
-  --ink: #101827;
-  --text-color: #1d2433;
-  --heading-color: #111827;
-  --muted-text: #5d6b82;
-  --muted-text-strong: #ffffff;
+  --bg-page: #f5f6f9;
+  --bg-page-2: #ffffff;
+  --bg-panel: rgba(15, 23, 42, 0.02);
+  --bg-panel-strong: #ffffff;
+  --bg-panel-soft: rgba(15, 23, 42, 0.02);
+  --bg-card: rgba(15, 23, 42, 0.03);
+  --bg-input: rgba(15, 23, 42, 0.035);
+  --bg-contrast: #eef1f7;
+  --bg-contrast-2: #e6eaf2;
+  --card-background: var(--bg-panel-strong);
+
+  --ink: #11131a;
+  --text-color: #1d222b;
+  --heading-color: #11131a;
+  --muted-text: #667085;
+  --muted-text-strong: #333844;
   --border-color: rgba(15, 23, 42, 0.1);
-  --shadow: 0 18px 45px rgba(96, 109, 148, 0.12);
-  --shadow-lg: 0 28px 60px rgba(96, 109, 148, 0.18);
+  --shadow: 0 12px 28px rgba(15, 23, 42, 0.1);
+  --shadow-lg: 0 24px 48px rgba(15, 23, 42, 0.14);
 }
 
 html {
@@ -61,10 +84,7 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(109, 94, 246, 0.18), transparent 30%),
-    radial-gradient(circle at top right, rgba(255, 90, 138, 0.12), transparent 24%),
-    linear-gradient(180deg, var(--bg-page) 0%, var(--bg-page-2) 42%, var(--bg-page) 100%);
+  background: linear-gradient(180deg, var(--bg-page) 0%, var(--bg-page-2) 46%, var(--bg-page) 100%);
   color: var(--text-color);
   font-family: 'DM Sans', sans-serif;
 }
@@ -74,36 +94,39 @@ body {
 }
 
 ::selection {
-  background: var(--accent-purple);
+  background: var(--accent-color);
   color: white;
 }
 
-/* barra de rolagem mais estilosa */
+/* barra de rolagem discreta, alinhada ao acento de marca */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--primary-color), var(--accent-purple));
+  background: var(--accent-color);
+  opacity: 0.5;
   border-radius: 999px;
 }
 
-/* keyframes que faltavam (estavam sendo usadas mas não existiam) */
+/* foco visível para navegação por teclado */
+:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
 @keyframes rise-in {
-  from { opacity: 0; transform: translateY(18px); }
+  from { opacity: 0; transform: translateY(14px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes result-in {
-  from { opacity: 0; transform: scale(0.96) translateY(10px); }
+  from { opacity: 0; transform: scale(0.97) translateY(8px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-@keyframes gradient-shift {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-6px); }
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
