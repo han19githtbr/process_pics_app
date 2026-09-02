@@ -25,16 +25,6 @@
   margin-bottom: 6px;
 }
 
-:root[data-theme='light'] .eyebrow,
-:root[data-theme='light'] .control-panel h3,
-:root[data-theme='light'] .control-group label,
-:root[data-theme='light'] .control-group p,
-:root[data-theme='light'] .control-group small,
-:root[data-theme='light'] .toggle-copy strong,
-:root[data-theme='light'] .toggle-copy small {
-  color: #f8fafc;
-}
-
 .control-panel h3 {
   margin: 0;
   color: var(--heading-color);
@@ -139,10 +129,6 @@
   cursor: pointer;
 }
 
-.control-group input[type="range"]:hover {
-  filter: saturate(1.12);
-}
-
 .control-group small {
   display: block;
   margin-top: 8px;
@@ -170,9 +156,7 @@
 }
 
 .toggle-item:hover {
-  transform: translateY(-1px);
   border-color: var(--accent-color);
-  box-shadow: 0 12px 18px rgba(15, 23, 42, 0.04);
 }
 
 .toggle-item input[type="checkbox"] {
@@ -242,7 +226,6 @@
 .btn-primary {
   background: var(--accent-color);
   color: white;
-  box-shadow: 0 10px 24px rgba(45, 30, 84, 0.28);
 }
 
 .btn-primary:hover:not(:disabled) {
@@ -259,11 +242,6 @@
 .btn-secondary:hover:not(:disabled) {
   border-color: var(--accent-color);
   color: var(--accent-color);
-}
-
-:root[data-theme='light'] .btn-primary,
-:root[data-theme='light'] .btn-secondary {
-  background: linear-gradient(120deg, #2d1e54, #3d2d6c);
 }
 
 .method-info {
@@ -285,87 +263,4 @@
   border-radius: 50%;
   background: var(--status-success);
   box-shadow: 0 0 0 3px rgba(52, 199, 138, 0.18);
-}
-
-/* frontend/src/components/ImageUploader/ImageUploader.css */
-.image-uploader {
-  background: var(--card-background);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  overflow: hidden;
-  margin-bottom: 20px;
-}
-
-.upload-area {
-  padding: 60px 20px;
-  text-align: center;
-  cursor: pointer;
-  transition: var(--transition);
-  border: 2px dashed var(--border-color);
-  margin: 20px;
-  border-radius: var(--radius);
-}
-
-.upload-area:hover {
-  border-color: var(--primary-color);
-  background: rgba(46, 204, 113, 0.05);
-}
-
-.upload-icon {
-  font-size: 4rem;
-  display: block;
-  margin-bottom: 16px;
-}
-
-.upload-content h3 {
-  margin-bottom: 8px;
-}
-
-.upload-hint {
-  font-size: 0.85rem;
-  color: #7f8c8d;
-  margin-top: 8px;
-}
-
-.file-input {
-  display: none;
-}
-
-.image-preview {
-  padding: 20px;
-}
-
-.image-container {
-  position: relative;
-  border-radius: var(--radius);
-  overflow: hidden;
-  background: #f8f9fa;
-}
-
-.preview-image {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-.debug-overlay {
-  position: relative;
-  margin-top: 10px;
-}
-
-.debug-image {
-  width: 100%;
-  height: auto;
-  display: block;
-}
-
-.debug-label {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
-  padding: 4px 12px;
-  border-radius: 4px;
-  font-size: 0.8rem;
 }

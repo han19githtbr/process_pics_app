@@ -33,12 +33,6 @@
   margin: 0;
 }
 
-:root[data-theme='light'] .header-left h2,
-:root[data-theme='light'] .transcript-label {
-  font-weight: 900;
-  letter-spacing: 0.02em;
-}
-
 .letter-count {
   background: var(--accent-soft);
   color: var(--accent-color);
@@ -71,8 +65,8 @@
 }
 
 .btn-download:hover {
-  background: var(--primary-dark);
-  transform: translateY(-2px);
+  background: var(--accent-color-dark);
+  transform: translateY(-1px);
 }
 
 .letter-transcript {
@@ -82,16 +76,6 @@
   padding: 16px 16px 14px;
   margin-bottom: 20px;
 }
-
-/*.letter-transcript::after {
-  content: "";
-  position: absolute;
-  left: 18px;
-  right: 18px;
-  bottom: -12px;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(125, 211, 252, 0.12), rgba(109, 94, 246, 0.32), rgba(125, 211, 252, 0.12));
-}*/
 
 .transcript-label {
   display: block;

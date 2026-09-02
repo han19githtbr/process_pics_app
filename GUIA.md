@@ -31,20 +31,21 @@ A solução combina Python/OpenCV, FastAPI e React para processar texto em image
 
 ## 3. Visual e experiência do produto
 
-A interface foi refinada para um modelo premium de dashboard com suporte a dark mode e light mode, com:
+A interface passou por uma reformulação de identidade visual para se alinhar com o que a ferramenta realmente faz: uma análise técnica e objetiva de segmentação e comparação de imagens. A paleta anterior (rosa, ciano e amarelo neon sobre fundo roxo) foi substituída por um sistema mais sóbrio e consistente:
 
-- fundo escuro com gradientes suaves de roxo, rosa e ciano, além de uma versão clara para uso em ambientes mais neutros;
-- painéis em vidro translúcido sobre fundos contrastados;
-- contraste forte para texto, botões e score de similaridade;
-- cards de upload, comparação e histórico com diferenciação visual mais clara e profissional;
-- botão de alternância de tema com switch para modo claro/escuro;
-- textos de ajuda e legendas em light mode ajustados para alta legibilidade em fundo escuro do painel lateral;
-- botões de ação em roxo escuro para manter contraste e consistência visual em ambos os temas;
-- área de letras recortadas com tamanho fixo e rolagem vertical controlada;
-- foco em clareza visual para quem revisa múltiplas imagens e letras em sequência;
-- responsividade ajustada para desktop, tablet e celular sem quebrar o layout.
+- fundo em grafite neutro (dark mode) e cinza muito claro (light mode), sem gradientes decorativos concorrendo com o conteúdo;
+- um único acento de marca (índigo, `#5b7cfa`) usado com moderação em botões, links e destaques — em vez de múltiplas cores vibrantes disputando atenção;
+- cores reservadas para significado, não decoração: verde para "imagem aceita", âmbar para "similaridade parcial" e vermelho para "plágio detectado", usadas apenas nesses contextos de status;
+- painéis com bordas de 1px e sombras discretas no lugar do efeito "vidro" (glassmorphism) pesado, o que melhora a legibilidade e a hierarquia entre os blocos de upload, comparação e histórico;
+- tipografia mantida em Space Grotesk (títulos) e DM Sans (texto), com pesos e tamanhos ajustados para reduzir o exagero visual dos títulos grandes;
+- ícones existentes (emoji) padronizados em selos circulares com o tom do acento de marca, criando um sistema visual coeso entre painel de configurações, upload e cabeçalhos;
+- cabeçalho alinhado à esquerda, mais compacto e com contraste mais equilibrado entre título, subtítulo e o botão de alternância de tema;
+- correção de duas inconsistências técnicas: uma regra de CSS duplicada em `ControlPanel.css` que conflitava com os estilos de `ImageUploader.css`, e a variável `--card-background`, usada em alguns componentes mas nunca definida — ambas causavam comportamento visual imprevisível dependendo da ordem de carregamento dos estilos;
+- contraste de texto revisado em botões, badges e mensagens de erro para atender melhor aos critérios de legibilidade (AA) em ambos os temas;
+- foco de teclado visível (`:focus-visible`) e respeito a `prefers-reduced-motion` adicionados como base de acessibilidade;
+- responsividade mantida e revisada para desktop, tablet e celular, sem quebrar o layout em nenhuma largura testada.
 
-Esse refinamento foi aplicado ao layout principal, ao painel de histórico, à grade de letras e aos blocos de upload/resultado.
+Esse refinamento foi aplicado ao layout principal, ao painel de configurações, aos cards de upload, ao painel de histórico, ao bloco de comparação e à grade de letras. Nenhuma estrutura de componente (`.tsx`) foi alterada — apenas os arquivos `.css`.
 
 ## 4. Stack
 
