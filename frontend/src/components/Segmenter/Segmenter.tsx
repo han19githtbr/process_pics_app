@@ -154,6 +154,30 @@ export const Segmenter: React.FC = () => {
     }
   };
 
+  const handleSourceUpload = (file: File) => {
+    sourceUpload.uploadImage(file);
+    reset();
+    setSelectedHistoryResult(null);
+    setCompareResult(null);
+  };
+
+  const handleSourceReset = () => {
+    sourceUpload.resetImage();
+    reset();
+    setSelectedHistoryResult(null);
+    setCompareResult(null);
+  };
+
+  const handleComparisonUpload = (file: File) => {
+    comparisonUpload.uploadImage(file);
+    setCompareResult(null);
+  };
+
+  const handleComparisonReset = () => {
+    comparisonUpload.resetImage();
+    setCompareResult(null);
+  };
+
   const handleReset = () => {
     reset();
     sourceUpload.resetImage();
@@ -335,11 +359,11 @@ export const Segmenter: React.FC = () => {
                 )}
               </div>
               <ImageUploader
-                onImageUpload={sourceUpload.uploadImage}
+                onImageUpload={handleSourceUpload}
                 image={sourceUpload.image}
-                debugImage={result?.debugImage}
-                debugCount={result?.letters.length ?? 0}
-                onReset={sourceUpload.resetImage}
+                debugImage={displayedResult?.debugImage}
+                debugCount={displayedResult?.letters?.length ?? 0}
+                onReset={handleSourceReset}
                 fileName={sourceUpload.file?.name}
               />
             </div>
@@ -355,9 +379,9 @@ export const Segmenter: React.FC = () => {
                 )}
               </div>
               <ImageUploader
-                onImageUpload={comparisonUpload.uploadImage}
+                onImageUpload={handleComparisonUpload}
                 image={comparisonUpload.image}
-                onReset={comparisonUpload.resetImage}
+                onReset={handleComparisonReset}
                 fileName={comparisonUpload.file?.name}
               />
             </div>

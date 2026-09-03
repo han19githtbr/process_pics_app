@@ -57,6 +57,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         removeNoise: true,
         splitGroupedLetters: true,
         filterNonLetters: true,
+        filterBackgroundNoise: true,
       });
     } else if (preset === 'sensitive') {
       onChange({
@@ -66,6 +67,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         removeNoise: false,
         splitGroupedLetters: true,
         filterNonLetters: true,
+        filterBackgroundNoise: true,
       });
     } else if (preset === 'denoise') {
       onChange({
@@ -75,6 +77,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         removeNoise: true,
         splitGroupedLetters: true,
         filterNonLetters: true,
+        filterBackgroundNoise: true,
       });
     }
   };
@@ -282,6 +285,25 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 <strong>Filtrar não-letras</strong>
               </span>
               <small>Descarta linhas, sublinhados, molduras e artefatos geométricos.</small>
+            </span>
+          </label>
+
+          <label className="toggle-item">
+            <input
+              type="checkbox"
+              checked={options.filterBackgroundNoise !== false}
+              onChange={(e) =>
+                handleChange('filterBackgroundNoise', e.target.checked)
+              }
+            />
+            <span className="toggle-copy">
+              <span className="toggle-headline">
+                <span className="toggle-icon">
+                  <Sparkles size={14} />
+                </span>
+                <strong>Filtro de Fundo & Desenhos</strong>
+              </span>
+              <small>Rejeita molduras decorativas, fundos coloridos, desenhos e artefatos de papel.</small>
             </span>
           </label>
 

@@ -1,9 +1,10 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useId } from 'react';
 import {
   UploadCloud,
   Image as ImageIcon,
   Trash2,
-  RefreshCw,
+  RotateCw,
+  FolderOpen,
   Layers,
   ZoomIn,
   X,
@@ -28,14 +29,11 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
   onReset,
   fileName,
 }) => {
+  const inputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [activeView, setActiveView] = useState<'original' | 'debug'>('original');
   const [showModal, setShowModal] = useState(false);
-
-  const handleClick = () => {
-    fileInputRef.current?.click();
-  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -43,10 +41,13 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
       onImageUpload(file);
       setActiveView('original');
     }
+    // Permite selecionar o mesmo arquivo novamente caso o usuário queira recarregar
+    event.target.value = '';
   };
 
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (event: React.DragEvent<HTMLElement>) => {
     event.preventDefault();
+    event.stopPropagation();
     setIsDragging(false);
     const file = event.dataTransfer.files?.[0];
     if (file) {
@@ -55,32 +56,84 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
     }
   };
 
-  const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDragOver = (event: React.DragEvent<HTMLElement>) => {
     event.preventDefault();
+    event.stopPropagation();
     if (!isDragging) setIsDragging(true);
   };
 
-  const handleDragLeave = () => {
+  const handleDragLeave = (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
     setIsDragging(false);
+  };
+
+  const handleRotate = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!image) return;
+
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error('Falha ao carregar imagem para rotação'));
+        img.src = image;
+      });
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      canvas.width = img.naturalHeight || img.height;
+      canvas.height = img.naturalWidth || img.width;
+
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((90 * Math.PI) / 180);
+      ctx.drawImage(img, -(img.naturalWidth || img.width) / 2, -(img.naturalHeight || img.height) / 2);
+
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const name = fileName ? fileName.replace(/\.[^.]+$/, '') + '.png' : 'imagem.png';
+        const rotatedFile = new File([blob], name, { type: 'image/png' });
+        onImageUpload(rotatedFile);
+        setActiveView('original');
+      }, 'image/png');
+    } catch (err) {
+      console.error('Erro ao girar imagem:', err);
+    }
   };
 
   const displayedImage = (activeView === 'debug' && debugImage) ? debugImage : image;
 
   return (
     <div className="image-uploader">
+      <input
+        ref={fileInputRef}
+        id={inputId}
+        type="file"
+        accept="image/png,image/jpeg,image/jpg,image/webp"
+        onChange={handleFileChange}
+        style={{ display: 'none' }}
+        aria-hidden="true"
+      />
+
       {!image ? (
-        <div
+        <label
+          htmlFor={inputId}
           className={`upload-area ${isDragging ? 'dragging' : ''}`}
-          onClick={handleClick}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') handleClick();
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              fileInputRef.current?.click();
+            }
           }}
-          aria-label="Área de upload de imagem"
+          aria-label="Área de upload de imagem. Clique ou arraste um arquivo."
         >
           <div className="upload-content">
             <div className="upload-icon-box">
@@ -95,16 +148,14 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
               <span className="badge-pill size-limit">Máx 10 MB</span>
             </div>
           </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/jpg"
-            onChange={handleFileChange}
-            className="file-input"
-          />
-        </div>
+        </label>
       ) : (
-        <div className="image-preview-card">
+        <div
+          className={`image-preview-card ${isDragging ? 'dragging' : ''}`}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+        >
           <div className="preview-toolbar">
             <div className="preview-meta">
               <ImageIcon size={16} className="preview-icon" />
@@ -119,7 +170,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                   <button
                     type="button"
                     className={`toggle-tab-btn ${activeView === 'original' ? 'active' : ''}`}
-                    onClick={() => setActiveView('original')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveView('original');
+                    }}
                     title="Exibir imagem original"
                   >
                     Original
@@ -127,7 +181,10 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
                   <button
                     type="button"
                     className={`toggle-tab-btn ${activeView === 'debug' ? 'active' : ''}`}
-                    onClick={() => setActiveView('debug')}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveView('debug');
+                    }}
                     title="Exibir segmentação com contornos e bounding boxes"
                   >
                     <Sparkles size={12} />
@@ -139,8 +196,11 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
               <button
                 type="button"
                 className="btn-icon-action"
-                onClick={() => setShowModal(true)}
-                title="Ampliar visualização"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowModal(true);
+                }}
+                title="Ampliar visualização (Zoom)"
                 aria-label="Ampliar visualização"
               >
                 <ZoomIn size={15} />
@@ -149,18 +209,34 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
               <button
                 type="button"
                 className="btn-icon-action"
-                onClick={handleClick}
-                title="Substituir imagem"
+                onClick={handleRotate}
+                title="Girar imagem 90° no sentido horário"
+                aria-label="Girar imagem 90°"
+              >
+                <RotateCw size={14} />
+              </button>
+
+              <button
+                type="button"
+                className="btn-icon-action"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileInputRef.current?.click();
+                }}
+                title="Substituir imagem por outra"
                 aria-label="Substituir imagem"
               >
-                <RefreshCw size={14} />
+                <FolderOpen size={14} />
               </button>
 
               {onReset && (
                 <button
                   type="button"
                   className="btn-icon-action danger"
-                  onClick={onReset}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReset();
+                  }}
                   title="Remover imagem"
                   aria-label="Remover imagem"
                 >
@@ -179,25 +255,25 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
               />
             )}
 
-            {debugImage && activeView === 'original' && (
+            {debugImage && (
               <button
                 type="button"
-                className="floating-debug-badge"
-                onClick={() => setActiveView('debug')}
+                className={`floating-debug-badge ${activeView === 'debug' ? 'active' : ''}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveView(activeView === 'debug' ? 'original' : 'debug');
+                }}
+                title={activeView === 'debug' ? 'Voltar para a imagem original' : 'Visualizar bounding boxes e contornos'}
               >
                 <Layers size={13} />
-                <span>{debugCount} letras detectadas — Ver Bounding Boxes</span>
+                <span>
+                  {activeView === 'debug'
+                    ? `${debugCount} letras — Ver Imagem Original`
+                    : `${debugCount} letras detectadas — Ver Bounding Boxes`}
+                </span>
               </button>
             )}
           </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/png,image/jpeg,image/jpg"
-            onChange={handleFileChange}
-            className="file-input"
-          />
         </div>
       )}
 

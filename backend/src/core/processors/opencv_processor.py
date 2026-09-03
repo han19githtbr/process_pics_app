@@ -26,6 +26,17 @@ class OpenCVProcessor(IImageProcessor):
         """
         return cv2.bilateralFilter(gray, d, sigma_color, sigma_space)
 
+    def detect_dark_background(self, gray_or_smooth: np.ndarray) -> bool:
+        """
+        Determina se a imagem possui fundo escuro com texto claro (True) ou fundo claro com texto escuro (False).
+        Avalia a região interna e a mediana geral, evitando distorção por molduras periféricas ou vinhetas.
+        """
+        h, w = gray_or_smooth.shape[:2]
+        inner = gray_or_smooth[int(h * 0.15):int(h * 0.85), int(w * 0.15):int(w * 0.85)]
+        inner_med = float(np.median(inner)) if inner.size > 0 else float(np.median(gray_or_smooth))
+        global_med = float(np.median(gray_or_smooth))
+        return (0.7 * inner_med + 0.3 * global_med) < 128
+
     def binarize_otsu(self, smooth: np.ndarray, invert: Optional[bool] = None) -> Tuple[np.ndarray, float]:
         """
         Passo 4 do trabalho: Binarização (Conversão Preto & Branco via Método de Otsu).
@@ -35,15 +46,8 @@ class OpenCVProcessor(IImageProcessor):
             bin[bin < 255] = 0
             return cv2.bitwise_not(bin)
         """
-        # Detecção automática de polaridade do fundo se não for explicitada
+        dark_background = self.detect_dark_background(smooth)
         if invert is None:
-            border = np.concatenate((
-                smooth[0, :], smooth[-1, :],
-                smooth[:, 0], smooth[:, -1]
-            ))
-            # Se a borda tiver mediana alta, o fundo é claro (papel branco) e texto escuro -> inverte (bitwise_not)
-            # para letras ficarem brancas (foreground = 255)
-            dark_background = float(np.median(border)) < 128
             invert = not dark_background
 
         t_val, binary = cv2.threshold(smooth, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
@@ -69,7 +73,7 @@ class OpenCVProcessor(IImageProcessor):
         return cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     def preprocess(self, image: np.ndarray, options: Optional[ProcessingOptions] = None) -> np.ndarray:
-        """Pré-processa a imagem, suportando modo acadêmico (PDF puro) ou aprimorado."""
+        """Pré-processa a imagem, suportando modo acadêmico (PDF puro) ou aprimorado com supressão de ruídos de fundo."""
         options = options or ProcessingOptions()
         gray = self.to_grayscale(image)
 
@@ -86,7 +90,7 @@ class OpenCVProcessor(IImageProcessor):
                 binary = self._remove_small_noise(binary, options.sensitivity)
             return binary
 
-        # Modo aprimorado (PDF + melhorias para robustez com baixo contraste e iluminação)
+        # Modo aprimorado (PDF + normalização morfológica contra fundos coloridos, vinhetas e desenhos)
         smooth = self.smooth_bilateral(
             gray,
             d=options.bilateral_d,
@@ -94,51 +98,37 @@ class OpenCVProcessor(IImageProcessor):
             sigma_space=options.bilateral_sigma_space,
         )
 
-        equalized = smooth
+        h, w = smooth.shape[:2]
+        dark_background = self.detect_dark_background(smooth)
+
         if options.enhance_contrast:
-            clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-            equalized = clahe.apply(smooth)
+            # Normalização morfológica TopHat / BlackHat
+            # Suprime fundos não-uniformes, molduras grandes e variações de iluminação
+            kernel_size = min(35, max(15, int(min(h, w) * 0.08)))
+            if kernel_size % 2 == 0:
+                kernel_size += 1
+            kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (kernel_size, kernel_size))
 
-        sensitivity = max(0.1, min(0.8, float(options.sensitivity)))
-        block_size = 11
-        if sensitivity > 0.6:
-            block_size = 15
-        elif sensitivity < 0.35:
-            block_size = 9
-        if block_size % 2 == 0:
-            block_size += 1
+            if dark_background:
+                norm = cv2.morphologyEx(smooth, cv2.MORPH_TOPHAT, kernel)
+            else:
+                norm = cv2.morphologyEx(smooth, cv2.MORPH_BLACKHAT, kernel)
 
-        border = np.concatenate((
-            equalized[0, :], equalized[-1, :],
-            equalized[:, 0], equalized[:, -1]
-        ))
-        dark_background = float(np.median(border)) < 128
-        threshold_type = cv2.THRESH_BINARY if dark_background else cv2.THRESH_BINARY_INV
-
-        adaptive = cv2.adaptiveThreshold(
-            equalized,
-            255,
-            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            threshold_type,
-            block_size,
-            int(round(10 - sensitivity * 10)),
-        )
-
-        _, otsu = cv2.threshold(equalized, 0, 255, threshold_type + cv2.THRESH_OTSU)
-
-        adaptive_white = cv2.countNonZero(adaptive)
-        otsu_white = cv2.countNonZero(otsu)
-        if sensitivity >= 0.55:
-            binary = adaptive if adaptive_white > otsu_white * 0.8 else otsu
+            t_otsu, binary = cv2.threshold(norm, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            if t_otsu < 15:
+                thresh_type = cv2.THRESH_BINARY if dark_background else cv2.THRESH_BINARY_INV
+                _, binary = cv2.threshold(smooth, 0, 255, thresh_type + cv2.THRESH_OTSU)
         else:
-            binary = otsu if otsu_white > adaptive_white else adaptive
+            thresh_type = cv2.THRESH_BINARY if dark_background else cv2.THRESH_BINARY_INV
+            _, binary = cv2.threshold(smooth, 0, 255, thresh_type + cv2.THRESH_OTSU)
 
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-        binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel)
-        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+        # Refinamento morfológico suave para consolidação dos traços das letras
+        kernel_m = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+        binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_m)
+        binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel_m)
 
         if options.remove_noise:
-            binary = self._remove_small_noise(binary, sensitivity)
+            binary = self._remove_small_noise(binary, options.sensitivity)
         return binary
     
     def resize_if_needed(self, image: np.ndarray, max_size: int = 1800) -> Tuple[np.ndarray, float]:

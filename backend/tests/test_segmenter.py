@@ -178,3 +178,52 @@ def test_segmenter_rejects_horizontal_line_as_non_letter():
     assert len(filtered) == 1
     assert filtered[0]['width'] == 18
 
+
+def test_segmenter_rejects_flat_background_crop():
+    segmenter = ImprovedSegmenter(ProcessingOptions(filter_background_noise=True))
+    # Imagem branca com um pequeno recorte quase liso (sem contraste) e um com letra real
+    raw_img = np.full((100, 100, 3), 245, dtype=np.uint8)
+    cv2.putText(raw_img, "A", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (20, 20, 20), 3)
+
+    binary = np.zeros((100, 100), dtype=np.uint8)
+    cv2.putText(binary, "A", (20, 60), cv2.FONT_HERSHEY_SIMPLEX, 1.2, 255, 3)
+
+    components = [
+        {'x': 20, 'y': 20, 'width': 25, 'height': 40, 'area': 300},  # Letra real
+        {'x': 60, 'y': 20, 'width': 25, 'height': 40, 'area': 300},  # Ruído sobre fundo branco liso
+    ]
+
+    filtered = segmenter._filter_components(components, binary, raw_img)
+    assert len(filtered) == 1
+    assert filtered[0]['x'] == 20
+
+
+def test_segmenter_rejects_hollow_frame_corner():
+    segmenter = ImprovedSegmenter(ProcessingOptions(filter_non_letters=True))
+    binary = np.zeros((150, 150), dtype=np.uint8)
+    # Desenha um canto de moldura em L (vazado no centro)
+    binary[20:80, 20:25] = 255
+    binary[20:25, 20:80] = 255
+
+    comp = {'x': 20, 'y': 20, 'width': 60, 'height': 60, 'area': int(np.count_nonzero(binary))}
+    filtered = segmenter._filter_components([comp], binary)
+    assert len(filtered) == 0
+
+
+def test_segmenter_detects_real_text_image_without_frame_noise():
+    import os
+    img_path = os.path.join("img", "text_image.jpg")
+    if not os.path.exists(img_path):
+        return
+
+    image = cv2.imread(img_path)
+    result = ImprovedSegmenter(ProcessingOptions(mode="enhanced")).segment(image)
+
+    # A imagem text_image.jpg contém exatamente 59 letras distribuídas em 5 linhas
+    assert 55 <= len(result.letters) <= 60
+    # Nenhuma letra deve tocar o limite externo de 1 pixel (molduras da foto)
+    assert not any(l.x <= 1 or l.y <= 1 for l in result.letters)
+    # A confiança média deve ser alta
+    assert result.metadata["confidence_score"] >= 0.90
+
+

@@ -83,8 +83,8 @@ class ImprovedSegmenter(ILetterSegmenter):
         components = self._detect_components(binary, edges)
         splits_count = sum(1 for c in components if c.get('was_split'))
 
-        # Filtragem de elementos não-letras (linhas, molduras, ruídos sólidos)
-        filtered = self._filter_components(components, binary)
+        # Filtragem de elementos não-letras (linhas, molduras, ruídos sólidos e fundos)
+        filtered = self._filter_components(components, binary, processed)
         filtered_count = len(components) - len(filtered)
 
         # Agrupamento por linhas
@@ -93,14 +93,14 @@ class ImprovedSegmenter(ILetterSegmenter):
         # Segmentação e criação das LetterBox por linha
         all_letters: List[LetterBox] = []
         for line_idx, line in enumerate(lines):
-            line_letters = self._segment_line(line, binary, line_idx + 1)
+            line_letters = self._segment_line(line, binary, line_idx + 1, processed)
             all_letters.extend(line_letters)
 
         # Ordenação por palavra preservando ordem natural de leitura
         ordered_letters = self._sort_letters_by_word(all_letters)
 
         # Validação morfológica final
-        validated = self.validator.validate(ordered_letters, binary)
+        validated = self.validator.validate(ordered_letters, binary, processed)
 
         # Recorte matricial individual de cada letra: curt = target_img[y:y+h, x:x+w]
         self._attach_letter_images(processed, validated)
@@ -382,16 +382,20 @@ class ImprovedSegmenter(ILetterSegmenter):
 
         return split_comps or [component]
 
-    def _filter_components(self, components: List[Dict], binary: np.ndarray) -> List[Dict]:
+    def _filter_components(self, components: List[Dict], binary: np.ndarray,
+                           raw_image: Optional[np.ndarray] = None) -> List[Dict]:
         """
         Filtra componentes que não são letras:
         - Rejeita linhas horizontais (sublinhados, barras)
         - Rejeita linhas verticais (molduras laterais, divisórias)
         - Rejeita blocos sólidos geométricos (sem vazados ou traços típicos de letras)
-        - Rejeita ruídos esparsos e poeiras de digitalização
-        - Rejeita molduras de página gigantes
+        - Rejeita molduras de página e toques nos limites externos da imagem
+        - Rejeita molduras vazadas e cantos decorativos geométricos (teste de preenchimento central)
+        - Rejeita recortes lisos de fundo / papel sem contraste ou desvio padrão suficiente
+        - Rejeita poeiras esparsas e ruídos de iluminação
         """
         total_area = binary.shape[0] * binary.shape[1]
+        img_h, img_w = binary.shape[:2]
         sensitivity = max(0.1, min(0.8, float(self.options.sensitivity)))
         min_size = max(3, int(self.options.min_letter_size))
         if sensitivity >= 0.55:
@@ -399,52 +403,90 @@ class ImprovedSegmenter(ILetterSegmenter):
         max_size = max(self.options.max_letter_size, min_size)
 
         filter_non_letters = getattr(self.options, 'filter_non_letters', True)
+        filter_bg_noise = getattr(self.options, 'filter_background_noise', True)
+
+        gray_img = None
+        if raw_image is not None and raw_image.size > 0:
+            gray_img = cv2.cvtColor(raw_image, cv2.COLOR_BGR2GRAY) if raw_image.ndim == 3 else raw_image
 
         filtered: List[Dict] = []
 
         for comp in components:
             w = comp['width']
             h = comp['height']
+            x = comp['x']
+            y = comp['y']
             area = comp['area']
             bbox_area = max(w * h, 1)
             area_ratio = area / max(total_area, 1)
             aspect_ratio = w / max(h, 1)
             density = area / bbox_area
 
-            # Rejeição de molduras gigantes que englobam a página
-            if area_ratio > 0.25:
+            # 1. Rejeição de molduras gigantes que englobam a página
+            if area_ratio > 0.20:
                 continue
 
             if filter_non_letters:
-                # 1. Rejeição de linhas horizontais (sublinhados, separadores)
-                if aspect_ratio > 4.2 or (aspect_ratio > 2.5 and h <= 5):
+                # 2. Rejeição de toques nas bordas extremas da imagem (molduras, vinhetas, cantos de recorte)
+                touches_border = (x <= 1 or y <= 1 or x + w >= img_w - 1 or y + h >= img_h - 1)
+                if touches_border:
                     continue
 
-                # 2. Rejeição de linhas verticais (molduras laterais, divisórias)
-                if (h / max(w, 1)) > 5.2 or ((h / max(w, 1)) > 3.0 and w <= 4):
+                # 3. Rejeição de linhas horizontais (sublinhados, réguas)
+                if aspect_ratio > 3.8 or (aspect_ratio > 2.5 and h <= 6):
                     continue
 
-                # 3. Rejeição de blocos sólidos geométricos (densidade quase total sem vazados)
-                if density > 0.90 and area > 140 and min(w, h) > 10:
+                # 4. Rejeição de linhas verticais (molduras laterais, divisórias longas)
+                # Letras finas como 'I' e '1' podem ter h/w até 10-12, mas com altura contida na linha (h <= 70)
+                if (h / max(w, 1)) > 14.0 or ((h / max(w, 1)) > 5.0 and h > 80) or (w <= 2 and h > 40):
                     continue
 
-                # 4. Rejeição de poeiras hiper-esparsas
-                if density < 0.13:
+                # 5. Rejeição de blocos sólidos geométricos
+                if density > 0.95 and area > 140 and min(w, h) > 10:
                     continue
 
-            min_component_area = max(24, min_size * min_size)
+                # 6. Rejeição de poeiras hiper-esparsas
+                if density < 0.08:
+                    continue
+
+                # 7. Rejeição de molduras vazadas e cantos geométricos (L-shapes / caixas vazadas)
+                if w >= 25 and h >= 25:
+                    crop_bin = binary[y:y+h, x:x+w]
+                    if crop_bin.size > 0:
+                        cy, cx = crop_bin.shape
+                        mid = crop_bin[int(cy * 0.25):int(cy * 0.75), int(cx * 0.25):int(cx * 0.75)]
+                        c_fill = float(np.mean(mid > 0)) if mid.size > 0 else 0
+                        if c_fill < 0.04 and (w > 35 or h > 35):
+                            continue
+
+            # 8. Filtro avançado contra ruídos de fundos coloridos, desenhos e artefatos de papel
+            if filter_bg_noise and gray_img is not None:
+                pad = 3
+                x0 = max(0, x - pad)
+                y0 = max(0, y - pad)
+                x1 = min(img_w, x + w + pad)
+                y1 = min(img_h, y + h + pad)
+                crop_g = gray_img[y0:y1, x0:x1]
+                if crop_g.size > 0:
+                    std_val = float(np.std(crop_g))
+                    dyn_range = float(np.max(crop_g) - np.min(crop_g))
+                    # Descarta recortes quase lisos (fundo homogêneo recortado como letra)
+                    if std_val < 16.0 or dyn_range < 35.0:
+                        continue
+
+            min_component_area = max(20, min_size * min_size)
 
             is_valid = (
                 area >= min_component_area and
-                area_ratio >= max(0.00012, 2.0 / max(total_area, 1)) and
+                area_ratio >= max(0.00010, 2.0 / max(total_area, 1)) and
                 w >= min_size and
                 h >= min_size and
                 w <= max_size and
                 h <= max_size and
-                aspect_ratio >= 0.12 and
-                aspect_ratio <= 4.5 and
-                density >= 0.12 and
-                density <= 0.94
+                aspect_ratio >= 0.05 and
+                aspect_ratio <= 3.8 and
+                density >= 0.08 and
+                (density <= 0.98 or min(w, h) <= 10)
             )
 
             if is_valid:
@@ -476,7 +518,8 @@ class ImprovedSegmenter(ILetterSegmenter):
         
         return lines
     
-    def _segment_line(self, line: List[Dict], binary: np.ndarray, line_number: int) -> List[LetterBox]:
+    def _segment_line(self, line: List[Dict], binary: np.ndarray, line_number: int,
+                      raw_image: Optional[np.ndarray] = None) -> List[LetterBox]:
         """Segmenta letras em uma linha."""
         if not line:
             return []
@@ -496,7 +539,8 @@ class ImprovedSegmenter(ILetterSegmenter):
                         x=x, y=y, width=width, height=height,
                         area=comp['area'], confidence=0.9
                     ),
-                    binary
+                    binary,
+                    raw_image
                 )
 
                 letter_boxes.append(LetterBox(

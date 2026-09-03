@@ -6,9 +6,15 @@ export const useImageUpload = () => {
   const [error, setError] = useState<string | null>(null);
 
   const uploadImage = useCallback((file: File) => {
-    // Validar tipo de arquivo
-    const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
-    if (!validTypes.includes(file.type)) {
+    // Validar tipo de arquivo por MIME type ou extensão
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const validExtensions = ['png', 'jpg', 'jpeg', 'webp'];
+    const isValidType =
+      validTypes.includes(file.type?.toLowerCase()) ||
+      (ext !== undefined && validExtensions.includes(ext));
+
+    if (!isValidType) {
       setError('Formato de arquivo inválido. Use PNG, JPG ou JPEG.');
       return;
     }
@@ -25,6 +31,9 @@ export const useImageUpload = () => {
     const reader = new FileReader();
     reader.onload = (e) => {
       setImage(e.target?.result as string);
+    };
+    reader.onerror = () => {
+      setError('Erro ao carregar o arquivo de imagem.');
     };
     reader.readAsDataURL(file);
   }, []);

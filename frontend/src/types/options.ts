@@ -10,6 +10,7 @@ export interface ProcessingOptions {
   mode?: 'enhanced' | 'academic';
   splitGroupedLetters?: boolean;
   filterNonLetters?: boolean;
+  filterBackgroundNoise?: boolean;
   cannyLow?: number;
   cannyHigh?: number;
   bilateralD?: number;
