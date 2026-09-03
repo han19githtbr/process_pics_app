@@ -8,6 +8,10 @@
   box-shadow: var(--shadow);
   transition: all var(--transition);
   animation: rise-in 450ms 150ms ease both;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .pipeline-viewer-nav {
@@ -18,12 +22,18 @@
   gap: 14px;
   padding-bottom: 18px;
   border-bottom: 1px solid var(--border-color);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .pipeline-nav-tabs {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .pipeline-tab-btn {
@@ -140,6 +150,11 @@
   overflow-x: auto;
   padding: 16px 2px 14px;
   scrollbar-width: thin;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
 }
 
 .step-bubble-btn {
@@ -386,9 +401,13 @@
 
 .transparency-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
   gap: 16px;
   margin-bottom: 20px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .transparency-card {
@@ -530,5 +549,123 @@
   color: var(--text-primary);
   font-size: 0.85rem;
   line-height: 1.55;
+}
+
+/* ==========================================================================
+   PipelineViewer Responsive Breakpoints
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .pipeline-viewer-card {
+    padding: 16px 14px;
+  }
+
+  .pipeline-viewer-nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .pipeline-nav-tabs {
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .pipeline-tab-btn {
+    width: 100%;
+    justify-content: center;
+    padding: 9px 12px;
+    font-size: 0.82rem;
+    flex-wrap: wrap;
+    text-align: center;
+  }
+
+  .pipeline-mode-indicator {
+    width: 100%;
+    justify-content: center;
+    box-sizing: border-box;
+    font-size: 0.74rem;
+    text-align: center;
+  }
+
+  .step-detail-card {
+    padding: 14px 12px;
+  }
+
+  .step-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .step-title {
+    font-size: 1.05rem;
+  }
+
+  .step-visual-body {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .step-image-box {
+    min-height: 180px;
+    max-height: 280px;
+  }
+
+  .step-preview-img {
+    max-height: 260px;
+  }
+
+  .step-controls {
+    flex-direction: row;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .transparency-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .transparency-card {
+    padding: 14px;
+  }
+
+  .academic-quote-box {
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .pipeline-viewer-card {
+    padding: 14px 10px;
+  }
+
+  .pipeline-tab-btn {
+    font-size: 0.78rem;
+    padding: 8px 10px;
+  }
+
+  .step-bubble-btn {
+    padding: 5px 10px;
+    font-size: 0.75rem;
+  }
+
+  .step-bubble-btn .bubble-num {
+    width: 18px;
+    height: 18px;
+    font-size: 0.65rem;
+  }
+
+  .formula-box {
+    padding: 10px 12px;
+  }
+
+  .formula-code {
+    font-size: 0.78rem;
+  }
 }
 

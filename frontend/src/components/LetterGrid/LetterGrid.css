@@ -9,6 +9,10 @@
   display: flex;
   flex-direction: column;
   gap: 18px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Header */
@@ -20,6 +24,10 @@
   gap: 14px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--border-color);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .header-left {
@@ -27,12 +35,16 @@
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .header-title-badge {
   display: flex;
   align-items: center;
   gap: 10px;
+  min-width: 0;
+  flex-wrap: wrap;
 }
 
 .header-title-badge h2 {
@@ -100,6 +112,8 @@
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .view-mode-selector {
@@ -179,6 +193,11 @@
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .transcript-header-row {
@@ -188,6 +207,9 @@
   margin-bottom: 12px;
   flex-wrap: wrap;
   gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .transcript-label {
@@ -196,6 +218,8 @@
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .transcript-hint {
@@ -209,7 +233,12 @@
   gap: 10px;
   max-height: 280px;
   overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 4px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .transcript-card {
@@ -283,7 +312,12 @@
   gap: 12px;
   max-height: 440px;
   overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 4px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .letter-item {
@@ -570,5 +604,176 @@
 
 .detail-item strong.accent-text {
   color: var(--accent-color);
+}
+
+/* ==========================================================================
+   LetterGrid Responsive Breakpoints
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .letter-grid-container {
+    padding: 16px 14px;
+    gap: 14px;
+  }
+
+  .letter-grid-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .header-left {
+    width: 100%;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .header-right {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .view-mode-selector {
+    width: 100%;
+    display: flex;
+  }
+
+  .view-mode-btn {
+    flex: 1;
+    justify-content: center;
+    text-align: center;
+    padding: 7px 10px;
+  }
+
+  .btn-toolbar {
+    flex: 1;
+    min-width: 130px;
+    justify-content: center;
+    padding: 8px 12px;
+  }
+
+  .letter-transcript {
+    padding: 12px;
+  }
+
+  .transcript-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .transcript-strip {
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
+    gap: 8px;
+    max-height: 320px;
+  }
+
+  .transcript-card {
+    padding: 6px 4px;
+  }
+
+  .transcript-image {
+    width: 42px;
+    height: 42px;
+  }
+
+  .transcript-placeholder {
+    width: 42px;
+    height: 42px;
+  }
+
+  .letter-grid {
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 8px;
+    max-height: 360px;
+  }
+
+  .letter-modal-card {
+    max-width: 95vw;
+    margin: 0 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .letter-grid-container {
+    padding: 14px 10px;
+    gap: 12px;
+  }
+
+  .header-title-badge {
+    gap: 8px;
+  }
+
+  .header-title-badge h2 {
+    font-size: 1.05rem;
+  }
+
+  .letter-count-pill {
+    padding: 2px 8px;
+    font-size: 0.7rem;
+  }
+
+  .header-stats-strip {
+    gap: 6px;
+  }
+
+  .confidence-pill,
+  .time-pill {
+    font-size: 0.7rem;
+    padding: 3px 8px;
+  }
+
+  .transcript-label {
+    font-size: 0.7rem;
+  }
+
+  .transcript-hint {
+    font-size: 0.68rem;
+  }
+
+  .transcript-strip {
+    grid-template-columns: repeat(auto-fill, minmax(54px, 1fr));
+    gap: 6px;
+  }
+
+  .transcript-card {
+    padding: 5px 2px;
+    gap: 4px;
+  }
+
+  .transcript-image {
+    width: 36px;
+    height: 36px;
+  }
+
+  .transcript-placeholder {
+    width: 36px;
+    height: 36px;
+    font-size: 0.8rem;
+  }
+
+  .transcript-number {
+    font-size: 0.65rem;
+  }
+
+  .transcript-line-tag {
+    font-size: 0.55rem;
+    padding: 0 3px;
+  }
+
+  .letter-grid {
+    grid-template-columns: repeat(auto-fill, minmax(68px, 1fr));
+    gap: 6px;
+  }
+
+  .letter-item {
+    padding: 5px;
+  }
+
+  .details-grid {
+    grid-template-columns: 1fr;
+  }
 }
 

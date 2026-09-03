@@ -11,6 +11,10 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .panel-header {
@@ -480,5 +484,44 @@
 .method-dot-icon {
   color: var(--status-success);
   flex-shrink: 0;
+}
+
+/* ==========================================================================
+   ControlPanel Responsive Breakpoints
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .control-panel {
+    position: static;
+    padding: 16px 14px;
+    gap: 14px;
+  }
+
+  .panel-header {
+    padding-bottom: 10px;
+  }
+
+  .control-panel h3 {
+    font-size: 1.1rem;
+  }
+
+  .btn {
+    padding: 10px 14px;
+    font-size: 0.88rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .control-panel {
+    padding: 14px 10px;
+  }
+
+  .presets-buttons {
+    grid-template-columns: 1fr;
+  }
+
+  .button-row {
+    grid-template-columns: 1fr;
+  }
 }
 
