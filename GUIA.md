@@ -51,42 +51,73 @@ O documento acadêmico concluiu honestamente que o algoritmo *"funciona para tod
 
 - **Execução e Exibição do Pipeline de 7 Passos do PDF:** o backend envia em cada requisição as imagens intermediárias reais geradas pelo OpenCV, permitindo navegar visualmente pelas etapas pedagógicas do trabalho acadêmico.
 - **Componente PipelineViewer no Frontend:**
-  * Aba *Pipeline do Trabalho Acadêmico*: carrossel interativo com visualização das 7 imagens intermediárias, fórmulas e comandos do OpenCV;
-  * Aba *Transparência & Limitações Técnicas*: explica didaticamente por que ocorrem ruídos, desafios de kerning, variações de iluminação e cita o trecho de conclusão do trabalho em PDF.
+  * Aba *Pipeline de Processamento*: carrossel interativo com *stepper* numerado, visualização das 7 imagens intermediárias, fórmulas matemáticas formatadas em código mono e comandos do OpenCV;
+  * Aba *Fundamentação & Limitações*: explica didaticamente as causas físicas e matemáticas de eventuais imperfeições (kerning estreito, ruídos de iluminação, fragmentação de acentos) e cita o trecho oficial de conclusão do trabalho acadêmico.
 - **Seletor de Modo no Painel de Configurações:**
-  * Modo Aprimorado: executa o pipeline do PDF complementado com divisão inteligente de caracteres e filtros de ruído;
+  * Modo Aprimorado: executa o pipeline do PDF complementado com divisão inteligente de caracteres via perfil de projeção vertical e filtros morfológicos de ruído e linhas;
   * Modo Acadêmico Puro: executa fielmente o fluxo estrito com parâmetros padrão do documento em PDF.
-- **Segmentação e Reconstrução Visual da Leitura:** recortes reais de cada letra exibidos na ordem de leitura sem marcadores artificiais.
-- **Comparação e Detecção de Plágio:** cálculo percentual entre duas imagens com classificação automática (`plagio_detectado`, `semelhanca_parcial`, `imagem_aceita`).
-- **Histórico Persistido com Fallback Resiliente:** salva no MongoDB Atlas quando disponível e mantém fallback em memória caso o banco esteja inacessível.
-- **Busca com Debounce e Realce:** pesquisa por nome do arquivo ou transcrição com marcação visual dos termos encontrados.
+- **Presets de Configuração Rápida:** botões de 1 clique (*Equilibrado*, *Alta Sensibilidade* e *Anti-Ruído*) para aplicar parâmetros otimizados instantaneamente.
+- **Segmentação e Reconstrução Visual da Leitura:** recortes reais de cada letra exibidos na ordem topológica natural de leitura e em grade completa.
+- **Inspetor Geométrico de Caracteres (Modal):** clique em qualquer letra recortada para abrir o inspetor com ampliação em alta resolução, coordenadas exatas $(x, y)$, dimensões $(w, h)$, área em $px^2$, linha e confiança.
+- **Cópia Rápida de IDs de Transcrição:** botão com 1 clique para copiar a sequência identificada para a área de transferência com feedback animado (*"Copiado!"*).
+- **Upload Interativo com Visualização Dual:** dropzone com suporte a arrastar e soltar, feedback visual de *drag*, alternador instantâneo entre *Original* e *Debug (Bounding Boxes)* e Lightbox modal para zoom em tela cheia.
+- **Comparação e Detecção de Plágio:** cálculo de similaridade com barra de progresso visual, classificação semântica colorida (`plagio_detectado`, `semelhanca_parcial`, `imagem_aceita`) e cartões de métricas individuais.
+- **Histórico Persistido com Fallback Resiliente:** salva no MongoDB Atlas quando disponível e mantém fallback em memória caso o cluster esteja indisponível.
+- **Busca com Debounce, Contador e Realce:** pesquisa por nome do arquivo ou transcrição com marcação visual dos termos encontrados e totalização de resultados.
 - **Exportação em ZIP:** download de todas as letras segmentadas e da transcrição textual.
-- **Identidade Visual Profissional com Dark/Light Mode:** paleta sóbria, contrastes acessíveis e controles intuitivos.
 
-## 4. Stack
+## 5. Design System, Arquitetura Visual e Responsividade
 
-### Backend
+A interface da aplicação foi concebida sob o padrão visual **AI & Vision Studio**, priorizando precisão visual, estética contemporânea e ergonomia de uso:
+
+- **Tipografia Escalonada:**
+  * **Plus Jakarta Sans:** tipografia primária de interface, com alto nível de legibilidade para textos, botões e labels;
+  * **Space Grotesk:** tipografia geométrica para títulos de destaque e identidade da marca;
+  * **JetBrains Mono:** tipografia monoespaçada aplicada a parâmetros, coordenadas, percentuais, fórmulas e tags de etapas.
+- **Paleta de Cores e Tokens Semânticos:**
+  * Base em ardósia/grafite neutro (`#080b11` a `#1a2438`) no tema escuro e superfícies alvas e limpas no tema claro;
+  * Acento de marca em Índigo Elétrico (`#6366f1` / `#4f46e5`) e destaques em Ciano (`#06b6d4`);
+  * Cores semânticas reservadas para diagnósticos reais: Esmeralda para aceitação (`#10b981`), Âmbar para parcialidade (`#f59e0b`) e Carmim/Rosa para plágio (`#f43f5e`).
+- **Técnicas Avançadas de Superfície & Glassmorphism:**
+  * Painéis e cartões com `backdrop-filter: blur(16px)` e bordas semitransparentes com brilho especular;
+  * Malhas de gradientes radiais suaves no fundo (*ambient glow*);
+  * Viewport de imagem com padrão xadrez (*checkerboard*) sutil para facilitar a visualização de fundos transparentes e recortes.
+- **Micro-interações e Vetorização (Lucide Icons):**
+  * Substituição integral de emojis por ícones vetoriais de alta precisão da biblioteca `lucide-react`;
+  * Switches deslizantes personalizados inspirados em design systems modernos (iOS / Linear);
+  * Sliders com trilha de preenchimento ativo e marcadores numéricos em *pills* monocromáticas;
+  * Hover cards com elevação suave (`transform: translateY(-2px)`) e *focus ring* acessível para navegação por teclado.
+- **Total Responsividade:**
+  * **Desktop (> 1140px):** layout em duas colunas com sidebar fixa à esquerda e fluxo de análise à direita;
+  * **Notebooks e Tablets (768px - 1140px):** menu retrátil de ajustes com botão alternador (*toggle*) para não poluir o espaço visual das imagens;
+  * **Mobile (< 768px):** empilhamento vertical responsivo, cards fluidos com `clamp()`, botões em largura total e modais ajustados a telas compactas.
+
+### 5.1. Stack Tecnológica e Dependências
+
+#### Backend
 - Python 3.10+
 - OpenCV (`opencv-python-headless`)
-- FastAPI
+- FastAPI & Uvicorn
 - NumPy
-- Pytest / pytest-cov
+- Pytest & pytest-cov
 - PyMongo
 - python-dotenv
 
-### Frontend
-- React 18
+#### Frontend
+- React 18 & React DOM
 - TypeScript
 - Vite
 - Axios
 - JSZip
+- Lucide React (`lucide-react` — ícones vetoriais modernos)
+- Google Fonts (`Plus Jakarta Sans`, `Space Grotesk`, `JetBrains Mono`)
 
-## 5. Requisitos
+### 5.2. Requisitos de Ambiente
 
 - Python 3.10+
 - Node.js 18+
 - npm
-- MongoDB Atlas account (opcional — a aplicação funciona sem ele, ver seção 11)
+- Conta no MongoDB Atlas (opcional — a aplicação opera com fallback local resiliente em memória, ver seção 11)
 - Git
 
 ## 6. Preparar o backend
@@ -489,6 +520,11 @@ Makefile
 
 - **Modo Aprimorado (Recomendado):** Ideal para imagens com fontes condensadas, texto corrido ou documentos escaneados com pequenas manchas e molduras;
 - **Modo Acadêmico Puro:** Ideal para demonstração pedagógica dos resultados exatos obtidos com os parâmetros literais do trabalho em PDF;
-- **Aba de Transparência:** Consulte a aba *Transparência & Limitações Técnicas* para entender como o algoritmo interpretou a imagem atual e conferir eventuais diagnósticos de qualidade;
-- **Ajuste fino de sensibilidade:** Em imagens com texto muito claro ou fundo ruidoso, ajuste a sensibilidade e ative os toggles *Remover ruídos* e *Melhorar contraste*.
+- **Uso dos Presets de Configuração:** Utilize os botões rápidos (*Equilibrado*, *Alta Sensib.* e *Anti-Ruído*) para aplicar parâmetros pré-calibrados instantaneamente com um clique;
+- **Inspeção Detalhada de Caracteres:** Clique sobre qualquer letra recortada na galeria para abrir o **Modal Inspetor Geométrico**, visualizando o recorte ampliado, coordenadas $(x, y)$, dimensões $(w, h)$, área em $px^2$, linha e confiança;
+- **Visualização Dual e Zoom Lightbox:** Alterne entre a imagem original e a visualização de debug com *bounding boxes* coloridos através dos botões no cabeçalho do card, ou use o ícone de lupa para abrir o visualizador ampliado em tela cheia;
+- **Cópia Instantânea da Transcrição:** Utilize o botão "Copiar IDs" no cabeçalho da galeria para transferir a sequência identificada para a área de transferência;
+- **Aba de Transparência & Limitações:** Consulte a aba *Transparência & Limitações Técnicas* no visualizador de pipeline para entender os operadores matemáticos, kerning e diagnósticos em tempo real da imagem;
+- **Ajuste Fino de Sensibilidade:** Em imagens com texto de baixo contraste ou fundo ruidoso, ajuste a sensibilidade e ative as opções *Remover ruídos* e *Melhorar contraste*.
+
 

@@ -1,4 +1,18 @@
 import React, { useState } from 'react';
+import {
+  Microscope,
+  Lightbulb,
+  Cpu,
+  ChevronLeft,
+  ChevronRight,
+  Split,
+  Filter,
+  SunMedium,
+  Compass,
+  Quote,
+  AlertTriangle,
+  Code2,
+} from 'lucide-react';
 import { PipelineStep } from '../../types';
 import './PipelineViewer.css';
 
@@ -31,7 +45,8 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
             className={`pipeline-tab-btn ${activeTab === 'steps' ? 'active' : ''}`}
             onClick={() => setActiveTab('steps')}
           >
-            🔬 Pipeline de Trabalho Acadêmico
+            <Microscope size={16} />
+            <span>Pipeline de Processamento</span>
             {steps.length > 0 && <span className="tab-badge">{steps.length} etapas</span>}
           </button>
           <button
@@ -39,14 +54,16 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
             className={`pipeline-tab-btn ${activeTab === 'transparency' ? 'active' : ''}`}
             onClick={() => setActiveTab('transparency')}
           >
-            💡 Transparência & Limitações Técnicas
-            <span className="tab-badge-highlight">Honestidade do Método</span>
+            <Lightbulb size={16} />
+            <span>Fundamentação & Limitações</span>
+            <span className="tab-badge-highlight">Transparência Técnica</span>
           </button>
         </div>
 
         <div className="pipeline-mode-indicator">
+          <Cpu size={14} className="mode-tag-icon" />
           <span className="mode-tag">
-            Modo atual: <strong>{mode === 'academic' ? 'PDF Puro (Acadêmico)' : 'Aprimorado (IA de Precisão)'}</strong>
+            Modo: <strong>{mode === 'academic' ? 'Literatura Acadêmica P.I.' : 'Aprimorado (Visão Computacional)'}</strong>
           </span>
         </div>
       </div>
@@ -55,10 +72,15 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
         <div className="pipeline-steps-content">
           {steps.length === 0 ? (
             <div className="pipeline-empty">
-              <p>Processe uma imagem para visualizar todas as 7 etapas intermediárias.</p>
+              <div className="empty-icon-box">
+                <Microscope size={26} />
+              </div>
+              <h4>Pipeline aguardando processamento</h4>
+              <p>Execute a segmentação de uma imagem para inspecionar visualmente cada uma das 7 etapas de transformações matriciais.</p>
             </div>
           ) : (
             <>
+              {/* Stepper Strip */}
               <div className="pipeline-stepper-strip">
                 {steps.map((step, idx) => (
                   <button
@@ -74,6 +96,7 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
                 ))}
               </div>
 
+              {/* Step Detail Card */}
               {currentStep && (
                 <div className="step-detail-card">
                   <div className="step-header">
@@ -82,6 +105,7 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
                       <h3 className="step-title">{currentStep.title}</h3>
                     </div>
                     <div className="step-technique-pill">
+                      <Code2 size={13} />
                       <code>{currentStep.technique}</code>
                     </div>
                   </div>
@@ -98,13 +122,13 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
                     <div className="step-info-box">
                       {currentStep.formula && (
                         <div className="formula-box">
-                          <span className="formula-label">Fórmula / Método Matemático:</span>
+                          <span className="formula-label">Fórmula / Operador Matemático:</span>
                           <code className="formula-code">{currentStep.formula}</code>
                         </div>
                       )}
 
                       <div className="step-description-text">
-                        <h4>Fundamentação Técnica:</h4>
+                        <h4>Fundamentação Técnica do Operador:</h4>
                         <p>{currentStep.description}</p>
                       </div>
 
@@ -115,7 +139,8 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
                           disabled={activeStepIndex === 0}
                           onClick={() => setActiveStepIndex((prev) => Math.max(0, prev - 1))}
                         >
-                          ← Etapa Anterior
+                          <ChevronLeft size={15} />
+                          <span>Anterior</span>
                         </button>
                         <span className="step-counter">
                           {activeStepIndex + 1} / {steps.length}
@@ -126,7 +151,8 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
                           disabled={activeStepIndex === steps.length - 1}
                           onClick={() => setActiveStepIndex((prev) => Math.min(steps.length - 1, prev + 1))}
                         >
-                          Próxima Etapa →
+                          <span>Próxima</span>
+                          <ChevronRight size={15} />
                         </button>
                       </div>
                     </div>
@@ -137,60 +163,68 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
           )}
         </div>
       ) : (
+        /* Transparency & Technical Limitations */
         <div className="transparency-content">
           <div className="transparency-intro">
-            <h3>Transparência sobre Detecção, Ruídos e Limites do Processamento</h3>
+            <h3>Transparência sobre Detecção, Ruídos e Limitações do Método</h3>
             <p>
-              Para que a aplicação seja 100% transparente e com objetivo honesto, esta seção detalha os princípios
-              físicos e matemáticos que influenciam a precisão da detecção e como o algoritmo lida com as imperfeições da visão computacional tradicional.
+              Em conformidade com as boas práticas científicas, esta seção detalha os princípios
+              físicos e matemáticos que influenciam a precisão dos operadores e como o sistema resolve as imperfeições clássicas da visão computacional.
             </p>
           </div>
 
           <div className="transparency-grid">
             <div className="transparency-card">
-              <div className="transparency-card-icon">🔤</div>
+              <div className="transparency-card-icon-box">
+                <Split size={20} />
+              </div>
               <h4>1. Por que letras podem ser agrupadas? (Kerning & Ligaduras)</h4>
               <p>
                 Em fontes condensadas, itálicas ou manuscritas, a distância horizontal entre dois caracteres adjacentes pode ser de apenas 1 ou 2 pixels.
                 Durante a binarização de Otsu e o filtro Canny, esses pixels de contato formam um único contorno contínuo, fazendo com que o retângulo envolvente (<code>boundingRect</code>) abrace mais de uma letra.
               </p>
               <div className="transparency-solution">
-                <strong>Solução implementada:</strong> Aplicamos análise do <em>Perfil de Projeção Vertical</em> para mapear a densidade de tinta ao longo de cada coluna e localizar os <em>vales locais</em> onde as letras se tocam, cortando e recalculando as caixas individuais.
+                <strong>Solução implementada:</strong> Análise do <em>Perfil de Projeção Vertical</em> para mapear a densidade de tinta ao longo de cada coluna e localizar os <em>vales locais</em> onde as letras se tocam, dividindo as caixas individuais.
                 {splitsCount > 0 && <span className="stat-pill">{splitsCount} letras agrupadas foram separadas nesta imagem!</span>}
               </div>
             </div>
 
             <div className="transparency-card">
-              <div className="transparency-card-icon">🧹</div>
-              <h4>2. Por que elementos que não são letras são recortados?</h4>
+              <div className="transparency-card-icon-box">
+                <Filter size={20} />
+              </div>
+              <h4>2. Por que elementos não-texto podem ser recortados?</h4>
               <p>
-                O algoritmo original do trabalho busca contornos fechados (<code>cv2.findContours</code>) e gera um Bounding Box para cada um.
-                Linhas horizontais (sublinhados), linhas verticais (molduras, margens da folha), ilustrações ou manchas de sujeira possuem intensidade escura similar à tinta e geram contornos válidos para o OpenCV.
+                O algoritmo original busca contornos fechados (<code>cv2.findContours</code>) e gera uma bounding box para cada um.
+                Linhas horizontais (sublinhados), molduras de folha, manchas ou logos possuem intensidade escura similar à tinta e geram contornos válidos para o OpenCV.
               </p>
               <div className="transparency-solution">
-                <strong>Solução implementada:</strong> Adicionamos filtros morfológicos refinados que analisam a razão de aspecto (largura/altura), a solidez geométrica (eliminando blocos 100% sólidos) e a densidade de contorno para descartar linhas e ruídos decorativos.
+                <strong>Solução implementada:</strong> Filtros morfológicos refinados que analisam a razão de aspecto (largura/altura), solidez geométrica e densidade de contorno para descartar linhas e ruídos decorativos.
                 {filteredCount > 0 && <span className="stat-pill">{filteredCount} elementos não-letra descartados nesta imagem!</span>}
               </div>
             </div>
 
             <div className="transparency-card">
-              <div className="transparency-card-icon">🌗</div>
+              <div className="transparency-card-icon-box">
+                <SunMedium size={20} />
+              </div>
               <h4>3. Variação de Iluminação e Sombras</h4>
               <p>
                 O Método de Otsu assume uma distribuição bimodal global de intensidades (fundo claro e texto escuro).
-                Se uma foto apresentar iluminação desigual (por exemplo, sombra de celular ou reflexo de flash), o limiar global pode binarizar incorretamente partes da imagem, gerando ruído de sal-e-pimenta ou caracteres com traços rompidos.
+                Se uma foto apresentar iluminação desigual (por exemplo, sombra de celular ou reflexo de flash), o limiar global pode binarizar incorretamente partes da imagem, gerando ruído de sal-e-pimenta.
               </p>
               <div className="transparency-solution">
-                <strong>Mitigação:</strong> A aplicação utiliza o <em>Filtro Bilateral</em> ($d=10, \sigma=75$) conforme recomendado no trabalho para suavizar gradientes preservando bordas vivas, além de equalização adaptativa (CLAHE) no modo aprimorado.
+                <strong>Mitigação:</strong> Utilização do <em>Filtro Bilateral</em> ($d=10, \sigma=75$) conforme recomendado no trabalho para suavizar gradientes preservando bordas vivas, além de equalização adaptativa (CLAHE).
               </div>
             </div>
 
             <div className="transparency-card">
-              <div className="transparency-card-icon">📍</div>
+              <div className="transparency-card-icon-box">
+                <Compass size={20} />
+              </div>
               <h4>4. Caracteres Desconectados (Pingos e Acentos)</h4>
               <p>
                 Caracteres como as letras minúsculas <code>i</code> e <code>j</code>, pontuações (<code>:</code>, <code>;</code>, <code>?</code>, <code>!</code>) e letras acentuadas (<code>á</code>, <code>ç</code>, <code>õ</code>) são formados fisicamente por dois ou mais contornos desconectados.
-                Na visão clássica, o pingo e a haste são detectados inicialmente como componentes separados.
               </p>
               <div className="transparency-solution">
                 <strong>Mitigação:</strong> O agrupador por linha organiza os fragmentos na mesma linha de leitura, preservando a coerência espacial do texto.
@@ -199,19 +233,22 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
           </div>
 
           <div className="academic-quote-box">
-            <span className="quote-icon">📜</span>
+            <Quote size={24} className="quote-icon" />
             <div className="quote-text">
-              <strong>Citação Oficial do Documento</strong>
+              <span className="quote-badge">Citação Oficial da Literatura de Referência</span>
               <em>
                 "O algoritmo funciona para todas as imagens que estão na pasta, mas é mais eficiente no caso das imagens que são compostas por palavras ou letras maiores."
               </em>
-              <span className="quote-author">— Sistema de Processamento de Imagens.</span>
+              <span className="quote-author">— Sistema de Processamento de Imagens e Visão Computacional.</span>
             </div>
           </div>
 
           {warnings.length > 0 && (
             <div className="transparency-warnings">
-              <h4>Diagnósticos em Tempo Real da Imagem Atual:</h4>
+              <div className="warnings-header">
+                <AlertTriangle size={18} />
+                <h4>Diagnósticos em Tempo Real da Imagem Atual:</h4>
+              </div>
               <ul>
                 {warnings.map((w, index) => (
                   <li key={index}>{w}</li>
@@ -224,3 +261,4 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
     </div>
   );
 };
+

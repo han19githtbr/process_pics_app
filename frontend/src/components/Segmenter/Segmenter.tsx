@@ -1,5 +1,24 @@
 // frontend/src/components/Segmenter/Segmenter.tsx
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  ScanSearch,
+  Sun,
+  Moon,
+  GitCompare,
+  RotateCw,
+  Search,
+  X,
+  ShieldAlert,
+  CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
+  Layers,
+  FileText,
+  Percent,
+  SlidersHorizontal,
+  ArrowRight,
+  Clock,
+} from 'lucide-react';
 import { useSegmenter } from '../../hooks/useSegmenter';
 import { useImageUpload } from '../../hooks/useImageUpload';
 import { ImageUploader } from '../ImageUploader';
@@ -13,21 +32,22 @@ import { compareImages, getProcessingHistory, searchProcessingHistory, getHistor
 import './Segmenter.css';
 
 export const Segmenter: React.FC = () => {
-  const [theme, setTheme] = React.useState<'dark' | 'light'>('dark');
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [showMobileControls, setShowMobileControls] = useState(false);
   const sourceUpload = useImageUpload();
   const comparisonUpload = useImageUpload();
   const { loading, error: segmentError, result, segment, reset } = useSegmenter();
-  const [compareResult, setCompareResult] = React.useState<ComparisonResult | null>(null);
-  const [compareLoading, setCompareLoading] = React.useState(false);
-  const [saveLoading, setSaveLoading] = React.useState(false);
-  const [saveError, setSaveError] = React.useState<string | null>(null);
-  const [history, setHistory] = React.useState<HistoryEntry[]>([]);
-  const [historyLoading, setHistoryLoading] = React.useState(false);
-  const [searchQuery, setSearchQuery] = React.useState('');
-  const [selectedHistoryResult, setSelectedHistoryResult] = React.useState<SegmentResult | null>(null);
+  const [compareResult, setCompareResult] = useState<ComparisonResult | null>(null);
+  const [compareLoading, setCompareLoading] = useState(false);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedHistoryResult, setSelectedHistoryResult] = useState<SegmentResult | null>(null);
   const displayedResult = selectedHistoryResult ?? result;
 
-  const [options, setOptions] = React.useState<ProcessingOptions>({
+  const [options, setOptions] = useState<ProcessingOptions>({
     sensitivity: 0.44,
     padding: 4,
     minLetterSize: 5,
@@ -40,7 +60,7 @@ export const Segmenter: React.FC = () => {
     filterNonLetters: true,
   });
 
-  const loadHistory = React.useCallback(async () => {
+  const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
       const data = await getProcessingHistory();
@@ -52,7 +72,7 @@ export const Segmenter: React.FC = () => {
     }
   }, []);
 
-  const runHistorySearch = React.useCallback(async (query: string) => {
+  const runHistorySearch = useCallback(async (query: string) => {
     setHistoryLoading(true);
     try {
       const data = await searchProcessingHistory(query);
@@ -64,11 +84,11 @@ export const Segmenter: React.FC = () => {
     }
   }, []);
 
-  React.useEffect(() => {
+  useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const query = searchQuery.trim();
 
     if (!query) {
@@ -237,26 +257,56 @@ export const Segmenter: React.FC = () => {
 
   return (
     <div className="segmenter-container">
+      {/* Top Header Bar */}
       <header className="segmenter-header">
         <div className="segmenter-header-row">
-          <h1>Pattern Checker</h1>
-          <button
-            type="button"
-            className="theme-toggle"
-            onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-            aria-label="Alternar entre modo claro e escuro"
-          >
-            <span>{theme === 'dark' ? '🌙' : '☀️'}</span>
-            <span className="theme-toggle-track" aria-hidden="true">
-              <span className="theme-toggle-thumb" />
-            </span>
-          </button>
+          <div className="brand-identity">
+            <div className="brand-logo-box">
+              <ScanSearch size={22} className="brand-logo-icon" />
+            </div>
+            <div>
+              <div className="brand-title-wrap">
+                <h1>Pattern Checker</h1>
+                <span className="brand-badge">CV Studio v2.0</span>
+              </div>
+              <p>Segmentação morfológica, visão computacional e análise de similaridade textual</p>
+            </div>
+          </div>
+
+          <div className="header-actions">
+            <div className="backend-status-pill">
+              <span className="status-live-dot" />
+              <span>Sistema Pronto</span>
+            </div>
+
+            <button
+              type="button"
+              className="mobile-controls-toggle"
+              onClick={() => setShowMobileControls(!showMobileControls)}
+              aria-label="Abrir configurações de processamento"
+            >
+              <SlidersHorizontal size={16} />
+              <span>Ajustes</span>
+            </button>
+
+            <button
+              type="button"
+              className="theme-toggle"
+              onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
+              aria-label="Alternar tema claro/escuro"
+              title={`Mudar para modo ${theme === 'dark' ? 'claro' : 'escuro'}`}
+            >
+              {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
+              <span className="theme-label">{theme === 'dark' ? 'Escuro' : 'Claro'}</span>
+            </button>
+          </div>
         </div>
-        <p>Segmentação, comparação e validação de semelhança entre imagens de texto</p>
       </header>
 
+      {/* Main Workspace Layout */}
       <div className="segmenter-content">
-        <aside className="controls-panel">
+        {/* Sidebar Controls Panel */}
+        <aside className={`controls-panel ${showMobileControls ? 'mobile-open' : ''}`}>
           <ControlPanel
             options={options}
             onChange={handleOptionsChange}
@@ -270,56 +320,212 @@ export const Segmenter: React.FC = () => {
           />
         </aside>
 
+        {/* Primary Content Area */}
         <main className="main-content">
+          {/* Upload Cards Grid */}
           <div className="compare-grid">
             <div className="upload-card">
               <div className="upload-card-header">
-                <span>Imagem original</span>
-                <span className="status-dot active" />
+                <div className="card-header-label">
+                  <span className={`status-dot ${sourceUpload.image ? 'active' : ''}`} />
+                  <span>Imagem de Origem (Amostra)</span>
+                </div>
+                {sourceUpload.image && (
+                  <span className="card-badge-ready">Carregada</span>
+                )}
               </div>
               <ImageUploader
                 onImageUpload={sourceUpload.uploadImage}
                 image={sourceUpload.image}
                 debugImage={result?.debugImage}
                 debugCount={result?.letters.length ?? 0}
+                onReset={sourceUpload.resetImage}
+                fileName={sourceUpload.file?.name}
               />
             </div>
 
             <div className="upload-card">
               <div className="upload-card-header">
-                <span>Imagem de comparação</span>
-                <span className="status-dot" />
+                <div className="card-header-label">
+                  <span className={`status-dot ${comparisonUpload.image ? 'active' : ''}`} />
+                  <span>Imagem de Comparação (Opcional)</span>
+                </div>
+                {comparisonUpload.image && (
+                  <span className="card-badge-ready">Carregada</span>
+                )}
               </div>
               <ImageUploader
                 onImageUpload={comparisonUpload.uploadImage}
                 image={comparisonUpload.image}
+                onReset={comparisonUpload.resetImage}
+                fileName={comparisonUpload.file?.name}
               />
             </div>
           </div>
 
+          {/* Compare Action Bar */}
           <div className="compare-actions">
             <button
               className="btn btn-compare"
               onClick={handleCompare}
               disabled={loading || compareLoading || !sourceUpload.image || !comparisonUpload.image}
             >
-              {compareLoading ? '⏳ Comparando...' : 'Comparar conteúdo'}
+              <GitCompare size={17} />
+              <span>{compareLoading ? 'Comparando Similaridade...' : 'Comparar Conteúdo das Imagens'}</span>
             </button>
           </div>
 
+          {/* Loading Indicator */}
+          {loading && (
+            <LoadingSpinner
+              label="Executando Visão Computacional..."
+              subtext="Filtro bilateral, binarização Otsu, Canny e extração de contornos em andamento"
+            />
+          )}
+          {compareLoading && (
+            <LoadingSpinner
+              label="Calculando Similaridade Textual..."
+              subtext="Segmentando ambas as imagens e calculando matriz de correspondência"
+            />
+          )}
+
+          {/* Error Message */}
+          {error && <ErrorMessage message={error} />}
+
+          {/* Comparison Result Banner */}
+          {compareResult && (
+            <div className={`comparison-panel ${compareResult.status}`}>
+              <div className="comparison-header">
+                <div className="comparison-title-wrap">
+                  <span className="comparison-eyebrow">Diagnóstico de Correspondência</span>
+                  <div className="comparison-status-badge">
+                    {compareResult.status === 'plagio_detectado' ? (
+                      <>
+                        <AlertTriangle size={20} className="status-badge-icon danger" />
+                        <h3>Plágio Detectado</h3>
+                      </>
+                    ) : compareResult.status === 'imagem_aceita' ? (
+                      <>
+                        <CheckCircle2 size={20} className="status-badge-icon success" />
+                        <h3>Imagem Aceita (Original)</h3>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle size={20} className="status-badge-icon warning" />
+                        <h3>Semelhança Parcial</h3>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="comparison-score-box">
+                  <span className="score-label">Índice de Semelhança</span>
+                  <strong className="score-value">
+                    {((compareResult.similarity ?? 0) * 100).toFixed(1)}%
+                  </strong>
+                </div>
+              </div>
+
+              {/* Score Progress Bar */}
+              <div className="comparison-progress-track">
+                <div
+                  className="comparison-progress-fill"
+                  style={{ width: `${Math.min(100, Math.max(0, (compareResult.similarity ?? 0) * 100))}%` }}
+                />
+              </div>
+
+              <p className="comparison-verdict">{compareResult.verdict}</p>
+
+              <div className="comparison-metrics">
+                <div className="metric-card">
+                  <div className="metric-icon-wrap">
+                    <Percent size={16} />
+                  </div>
+                  <div className="metric-data">
+                    <span>Semelhança Calculada</span>
+                    <strong>{((compareResult.similarity ?? 0) * 100).toFixed(1)}%</strong>
+                  </div>
+                </div>
+
+                <div className="metric-card">
+                  <div className="metric-icon-wrap">
+                    <FileText size={16} />
+                  </div>
+                  <div className="metric-data">
+                    <span>Caracteres (Amostra 1)</span>
+                    <strong>{compareResult.sourceLetters ?? 0} letras</strong>
+                  </div>
+                </div>
+
+                <div className="metric-card">
+                  <div className="metric-icon-wrap">
+                    <Layers size={16} />
+                  </div>
+                  <div className="metric-data">
+                    <span>Caracteres (Amostra 2)</span>
+                    <strong>{compareResult.targetLetters ?? 0} letras</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Quality Notice / Warnings */}
+          {displayedResult && displayedResult.meta.warnings && displayedResult.meta.warnings.length > 0 && (
+            <section className="quality-notice" aria-label="Limitações da análise">
+              <div className="quality-notice-header">
+                <ShieldAlert size={20} className="quality-notice-icon" />
+                <div>
+                  <span className="quality-notice-label">Diagnóstico de Qualidade & Limitações</span>
+                  <h3>Observações sobre a Qualidade da Imagem</h3>
+                </div>
+              </div>
+              <ul className="quality-notice-list">
+                {displayedResult.meta.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {/* Letter Grid Results */}
+          {displayedResult && (
+            <LetterGrid
+              letters={displayedResult.letters}
+              onDownload={handleDownloadAll}
+              metadata={displayedResult.meta}
+            />
+          )}
+
+          {/* Pipeline Step Viewer */}
+          <PipelineViewer
+            steps={displayedResult?.steps ?? []}
+            warnings={displayedResult?.meta?.warnings ?? []}
+            splitsCount={displayedResult?.meta?.splits_count ?? 0}
+            filteredCount={displayedResult?.meta?.filtered_count ?? 0}
+            mode={options.mode}
+          />
+
+          {/* History Panel */}
           <div className="history-panel">
             <div className="history-header">
-              <h3>Histórico</h3>
-              <button type="button" className="history-refresh" onClick={handleHistoryRefresh}>
-                {historyLoading ? 'Atualizando...' : 'Atualizar'}
+              <div className="history-title-wrap">
+                <Clock size={17} className="history-title-icon" />
+                <h3>Histórico de Processamentos</h3>
+              </div>
+              <button
+                type="button"
+                className={`history-refresh ${historyLoading ? 'loading' : ''}`}
+                onClick={handleHistoryRefresh}
+                title="Recarregar histórico"
+              >
+                <RotateCw size={13} className={historyLoading ? 'spin-icon' : ''} />
+                <span>{historyLoading ? 'Atualizando...' : 'Atualizar'}</span>
               </button>
             </div>
 
             <div className={`history-search ${searchQuery ? 'has-value' : ''}`}>
-              <svg className="history-search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
-                <circle cx="7" cy="7" r="5.25" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M11 11L14.5 14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
+              <Search size={15} className="history-search-icon" />
               <input
                 type="text"
                 className="history-search-input"
@@ -338,7 +544,7 @@ export const Segmenter: React.FC = () => {
                   onClick={handleClearSearch}
                   aria-label="Limpar busca"
                 >
-                  ✕
+                  <X size={12} />
                 </button>
               )}
             </div>
@@ -355,7 +561,10 @@ export const Segmenter: React.FC = () => {
 
             <div className="history-list">
               {history.length === 0 && !searchQuery.trim() ? (
-                <p className="history-empty">Ainda não há imagens salvas no histórico.</p>
+                <div className="history-empty">
+                  <p>Nenhuma imagem salva no histórico até o momento.</p>
+                  <small>Clique em "Salvar" no painel de configurações para arquivar resultados.</small>
+                </div>
               ) : (
                 history.map((entry, index) => (
                   <button
@@ -365,117 +574,67 @@ export const Segmenter: React.FC = () => {
                     style={{ animationDelay: `${index * 35}ms` }}
                     onClick={() => void handleHistorySelect(entry._id ?? '')}
                   >
-                    {entry.imageData && (
-                      <img src={entry.imageData} alt={entry.sourceName ?? 'Imagem processada'} className="history-thumb" />
-                    )}
-                    <span className="history-name">
-                      {highlightMatch(entry.sourceName ?? 'Imagem processada', searchQuery)}
-                    </span>
-                    <span className="history-meta">
-                      {entry.createdAt ? new Date(entry.createdAt).toLocaleString('pt-BR') : 'Agora'}
-                    </span>
+                    <div className="history-item-top">
+                      {entry.imageData && (
+                        <img
+                          src={entry.imageData}
+                          alt={entry.sourceName ?? 'Imagem processada'}
+                          className="history-thumb"
+                        />
+                      )}
+                      <div className="history-item-info">
+                        <span className="history-name">
+                          {highlightMatch(entry.sourceName ?? 'Imagem processada', searchQuery)}
+                        </span>
+                        <span className="history-meta">
+                          {entry.createdAt ? new Date(entry.createdAt).toLocaleString('pt-BR') : 'Hoje'}
+                        </span>
+                        {entry.letters && entry.letters.length > 0 && (
+                          <span className="history-letters-count">
+                            {entry.letters.length} caracteres extraídos
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
                     {entry.letters && entry.letters.length > 0 ? (
-                      <span className="history-letters-strip">
-                        {entry.letters.map((letter, index) =>
+                      <div className="history-letters-strip">
+                        {entry.letters.slice(0, 14).map((letter, letterIdx) =>
                           letter.image ? (
                             <img
-                              key={letter.id ?? index}
+                              key={letter.id ?? letterIdx}
                               src={letter.image}
-                              alt={`Letra recortada ${letter.id ?? index + 1}`}
+                              alt={`Caractere ${letter.id ?? letterIdx + 1}`}
                               className="history-letter-thumb"
                             />
                           ) : (
-                            <span key={letter.id ?? index} className="history-letter-thumb-placeholder">
-                              {letter.id ?? index + 1}
+                            <span key={letter.id ?? letterIdx} className="history-letter-thumb-placeholder">
+                              {letter.id ?? letterIdx + 1}
                             </span>
                           )
                         )}
-                      </span>
+                        {entry.letters.length > 14 && (
+                          <span className="history-more-pill">+{entry.letters.length - 14}</span>
+                        )}
+                      </div>
                     ) : (
                       <span className="history-transcript">Sem recortes salvos</span>
                     )}
-                    <span className="history-view-hint">Ver recortes →</span>
+
+                    <div className="history-item-footer">
+                      <span className="history-view-hint">
+                        Carregar no Editor
+                        <ArrowRight size={13} />
+                      </span>
+                    </div>
                   </button>
                 ))
               )}
             </div>
           </div>
-
-          {loading && <LoadingSpinner />}
-          {compareLoading && <LoadingSpinner />}
-
-          {error && <ErrorMessage message={error} />}
-
-          {compareResult && (
-            <div className="comparison-panel">
-              <div className="comparison-header">
-                <div>
-                  <span className="comparison-eyebrow">Análise de similaridade</span>
-                  <h3>{compareResult.status === 'plagio_detectado' ? 'Plágio detectado' : compareResult.status === 'imagem_aceita' ? 'Imagem aceita' : 'Semelhança parcial'}</h3>
-                </div>
-                <div className="comparison-score">
-                  {(compareResult.similarity ?? 0) * 100}%
-                </div>
-              </div>
-
-              <p className="comparison-verdict">{compareResult.verdict}</p>
-
-              <div className="comparison-metrics">
-                <div className="metric-card">
-                  <span>Semelhança</span>
-                  <strong>{((compareResult.similarity ?? 0) * 100).toFixed(1)}%</strong>
-                </div>
-                <div className="metric-card">
-                  <span>Fonte 1</span>
-                  <strong>{compareResult.sourceLetters ?? 0} letras</strong>
-                </div>
-                <div className="metric-card">
-                  <span>Fonte 2</span>
-                  <strong>{compareResult.targetLetters ?? 0} letras</strong>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {displayedResult && (
-            <>
-              {displayedResult.meta.warnings && displayedResult.meta.warnings.length > 0 && (
-                <section className="quality-notice" aria-label="Limitações da análise">
-                  <div>
-                    <span className="quality-notice-label">Diagnóstico de Qualidade & Transparência</span>
-                    <h3>Análise e integridade dos recortes</h3>
-                  </div>
-                  <ul>
-                    {displayedResult.meta.warnings.map((warning) => (
-                      <li key={warning}>{warning}</li>
-                    ))}
-                  </ul>
-                </section>
-              )}
-              <LetterGrid
-                letters={displayedResult.letters}
-                onDownload={handleDownloadAll}
-                metadata={displayedResult.meta}
-              />
-              <PipelineViewer
-                steps={displayedResult.steps}
-                warnings={displayedResult.meta.warnings}
-                splitsCount={displayedResult.meta.splits_count}
-                filteredCount={displayedResult.meta.filtered_count}
-                mode={options.mode}
-              />
-            </>
-          )}
-
-          {!displayedResult && (
-            <PipelineViewer
-              steps={[]}
-              warnings={[]}
-              mode={options.mode}
-            />
-          )}
         </main>
       </div>
     </div>
   );
 };
+
