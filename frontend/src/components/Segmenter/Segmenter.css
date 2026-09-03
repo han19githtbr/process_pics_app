@@ -512,6 +512,7 @@
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .history-title-wrap {
@@ -524,11 +525,53 @@
   color: var(--accent-color);
 }
 
+.history-count-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent-color);
+  border: 1px solid var(--accent-border);
+}
+
 .history-header h3 {
   margin: 0;
   font-size: 1.15rem;
   color: var(--heading-color);
   font-weight: 700;
+}
+
+.history-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.history-clear-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--status-danger);
+  font-weight: 600;
+  font-size: 0.8rem;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.history-clear-all-btn:hover:not(:disabled) {
+  border-color: var(--status-danger-border);
+  background: var(--status-danger-soft);
+  color: var(--status-danger);
+}
+
+.history-clear-all-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .history-refresh {
@@ -717,6 +760,39 @@
   gap: 2px;
   min-width: 0;
   flex: 1;
+}
+
+.history-item-info-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.history-delete-item-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.history-delete-item-btn:hover:not(:disabled) {
+  background: var(--status-danger-soft);
+  color: var(--status-danger);
+  border-color: var(--status-danger-border);
+}
+
+.history-delete-item-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .history-name {

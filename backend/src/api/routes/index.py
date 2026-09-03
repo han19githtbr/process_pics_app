@@ -51,6 +51,20 @@ async def get_history_item(item_id: str):
     return item
 
 
+@router.delete("/history")
+async def clear_history():
+    """Limpa todo o histórico de processamentos no banco de dados."""
+    result, status_code = handler.clear_history()
+    return JSONResponse(content=result, status_code=status_code)
+
+
+@router.delete("/history/{item_id}")
+async def delete_history_item(item_id: str):
+    """Remove um item específico do histórico no banco de dados."""
+    result, status_code = handler.delete_history_item(item_id)
+    return JSONResponse(content=result, status_code=status_code)
+
+
 @router.options("/segment")
 async def segment_options():
     """Responde a requisições OPTIONS (CORS)."""
@@ -66,6 +80,12 @@ async def compare_options():
 @router.options("/history")
 async def history_options():
     """Responde a requisições OPTIONS para o histórico."""
+    return {}
+
+
+@router.options("/history/{item_id}")
+async def history_item_options(item_id: str):
+    """Responde a requisições OPTIONS para item individual do histórico."""
     return {}
 
 

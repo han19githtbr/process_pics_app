@@ -75,6 +75,28 @@ class LetterSegmenterHandler:
     def get_history_item(self, item_id: str):
         return self.mongodb_service.get_history_item(item_id)
 
+    def delete_history_item(self, item_id: str):
+        """Remove um item individual do histórico."""
+        try:
+            success = self.mongodb_service.delete_history_item(item_id)
+            if not success:
+                return {'error': 'Item não encontrado no histórico.'}, 404
+            return {'success': True, 'message': 'Item removido do histórico com sucesso.'}, 200
+        except Exception as e:
+            return {'error': 'Falha ao remover item do histórico.', 'detail': str(e)}, 500
+
+    def clear_history(self):
+        """Limpa todos os itens do histórico."""
+        try:
+            count = self.mongodb_service.clear_history()
+            return {
+                'success': True,
+                'deletedCount': count,
+                'message': f'Histórico limpo com sucesso ({count} itens apagados).',
+            }, 200
+        except Exception as e:
+            return {'error': 'Falha ao limpar histórico.', 'detail': str(e)}, 500
+
     def handle_segment(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Processa requisição de segmentação."""
         try:

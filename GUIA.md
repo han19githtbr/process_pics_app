@@ -13,7 +13,7 @@ A solução é desenhada para:
 - oferecer **alta precisão no recorte de letras individuais**, resolvendo o desafio de letras coladas/agrupadas;
 - **rejeitar elementos não-textuais** (linhas, molduras, sublinhados, ruídos e artefatos gráficos);
 - disponibilizar um painel de **Transparência e Honestidade Técnica**, explicando as causas físicas e matemáticas de imperfeições da visão computacional tradicional;
-- manter todas as funcionalidades adicionais desenvolvidas (comparação de plágio, histórico persistido no MongoDB Atlas com fallback local, exportação em `.zip`, alternador de temas claro/escuro).
+- manter todas as funcionalidades adicionais desenvolvidas (comparação de plágio, histórico persistido no MongoDB Atlas com fallback local, exclusão individual de imagens e limpeza total do banco de dados, rotação 90° de imagens, exportação em `.zip`, alternador de temas claro/escuro).
 
 ## 2. Pipeline das 7 Etapas do Trabalho em PDF
 
@@ -96,13 +96,24 @@ Em imagens ricas contendo fundos coloridos, ilustrações, grafismos, vinhetas o
   * Modo Aprimorado: executa o pipeline do PDF complementado com divisão inteligente de caracteres via perfil de projeção vertical e filtros morfológicos de ruído e linhas;
   * Modo Acadêmico Puro: executa fielmente o fluxo estrito com parâmetros padrão do documento em PDF.
 - **Presets de Configuração Rápida:** botões de 1 clique (*Equilibrado*, *Alta Sensibilidade* e *Anti-Ruído*) para aplicar parâmetros otimizados instantaneamente.
+- **Upload Ágil e Confiável em 1 Clique:** área de upload nativa com `<label>` associada diretamente a `<input type="file">`, abrindo o seletor na primeira tentativa com carregamento imediato, suporte a arrastar e soltar (drag & drop) e validação dupla (MIME e extensão: PNG, JPG, JPEG, WEBP).
+- **Toolbar de Ações da Amostra (Imagem de Origem):**
+  * **Alternador de Visão Original / Debug (N):** alternância instantânea entre a foto original e a visualização com contornos e bounding boxes coloridos;
+  * **Pílula Flutuante Bidirecional:** botão inferior interativo que informa a quantidade de caracteres detectados e alterna a visualização com um clique;
+  * **Ampliação em Alta Resolução (Zoom Lightbox):** modal em tela cheia com alta nitidez e fechamento em clique externo;
+  * **Girar Imagem (90°):** rotação instantânea em sentido horário via HTML5 Canvas, recriando o arquivo em memória para correção de orientação antes da segmentação;
+  * **Substituir Imagem:** botão dedicado com ícone de pasta (`FolderOpen`) para troca rápida de arquivo;
+  * **Remover Imagem (Lixeira):** limpa o arquivo ativo e redefine o estado da segmentação e dos resultados.
 - **Segmentação e Reconstrução Visual da Leitura:** recortes reais de cada letra exibidos na ordem topológica natural de leitura e em grade completa.
 - **Inspetor Geométrico de Caracteres (Modal):** clique em qualquer letra recortada para abrir o inspetor com ampliação em alta resolução, coordenadas exatas $(x, y)$, dimensões $(w, h)$, área em $px^2$, linha e confiança.
 - **Cópia Rápida de IDs de Transcrição:** botão com 1 clique para copiar a sequência identificada para a área de transferência com feedback animado (*"Copiado!"*).
-- **Upload Interativo com Visualização Dual:** dropzone com suporte a arrastar e soltar, feedback visual de *drag*, alternador instantâneo entre *Original* e *Debug (Bounding Boxes)* e Lightbox modal para zoom em tela cheia.
 - **Comparação e Detecção de Plágio:** cálculo de similaridade com barra de progresso visual, classificação semântica colorida (`plagio_detectado`, `semelhanca_parcial`, `imagem_aceita`) e cartões de métricas individuais.
-- **Histórico Persistido com Fallback Resiliente:** salva no MongoDB Atlas quando disponível e mantém fallback em memória caso o cluster esteja indisponível.
-- **Busca com Debounce, Contador e Realce:** pesquisa por nome do arquivo ou transcrição com marcação visual dos termos encontrados e totalização de resultados.
+- **Histórico Persistido com Gerenciamento Completo no Banco de Dados:**
+  * Persistência em MongoDB Atlas com fallback resiliente em memória;
+  * **Exclusão Individual (Item a Item):** cada item possui botão de lixeira para apagar permanentemente o registro e todas as suas letras recortadas do banco de dados (MongoDB `delete_one`), com confirmação de segurança;
+  * **Limpeza Total do Histórico:** botão "Limpar Histórico" no topo do painel para apagar todo o acervo do banco de dados de uma só vez (MongoDB `delete_many`), com confirmação prévia;
+  * **Contador de Registros:** indicador visual com a contagem exata de imagens salvas;
+  * **Busca com Debounce, Contador e Realce:** pesquisa por nome do arquivo ou transcrição com marcação visual dos termos encontrados e totalização de resultados.
 - **Exportação em ZIP:** download de todas as letras segmentadas e da transcrição textual.
 
 ## 5. Design System, Arquitetura Visual e Responsividade
@@ -272,23 +283,24 @@ Para produção no Render:
 VITE_API_URL=https://seu-backend.onrender.com/api
 ```
 
-## 11. Persistência do histórico
+## 11. Persistência e Gerenciamento do Histórico no Banco de Dados
 
-O histórico de imagens processadas pode ser persistido de duas formas, dependendo da configuração:
+O histórico de imagens processadas conta com um ciclo de vida CRUD completo persistido em banco de dados:
 
-- **Com `MONGODB_URI` definida e conexão bem-sucedida:** o backend salva no MongoDB Atlas. Essa escolha faz sentido pelo volume de imagens e textos longos, porque o MongoDB aceita documentos flexíveis, armazena metadados, imagens em base64 e recortes em arrays sem exigir um esquema rígido.
-- **Sem `MONGODB_URI` (ou com falha de conexão):** o backend usa um histórico **em memória**, mantido enquanto o processo do servidor estiver rodando. Ele é perdido a cada reinício/deploy, mas permite testar todo o fluxo (segmentar, salvar, listar, buscar, abrir item) sem depender de um banco externo.
+- **Com `MONGODB_URI` definida e conexão bem-sucedida:** o backend salva e gerencia os registros diretamente no MongoDB Atlas. Essa escolha faz sentido pelo volume de imagens e textos longos, porque o MongoDB aceita documentos flexíveis, armazena metadados, imagens em base64 e recortes em arrays sem exigir um esquema rígido.
+- **Sem `MONGODB_URI` (ou com falha de conexão):** o backend usa um histórico **em memória** (`_local_history`), mantido enquanto o processo do servidor estiver rodando. Ele permite testar todo o fluxo (segmentar, salvar, listar, buscar, abrir item, apagar individual e limpar tudo) sem depender de um banco externo.
 
-Quando houver processamento bem-sucedido em `POST /api/segment`, o backend salva **automaticamente** no histórico apenas se o MongoDB estiver conectado (`is_enabled`). O salvamento manual pelo botão "Salvar" no histórico (`POST /api/history/save`) funciona em ambos os casos — Mongo conectado ou fallback em memória.
+### Estrutura do documento persistido
+- imagem original/processada em base64 (`imageData`);
+- nome do arquivo (`sourceName`);
+- transcrição completa em ordem natural de leitura (`transcript`);
+- array completo de letras recortadas (`letters`), cada uma com sua sub-imagem em base64 (`letter.image`), coordenadas geométricas $(x, y, w, h)$, área e pontuação de confiança;
+- métricas e metadados detalhados (`metadata`);
+- carimbos de data/hora (`createdAt` e `updatedAt`).
 
-O que é salvo em cada registro:
-
-- imagem original em base64;
-- nome do arquivo;
-- transcrição em ordem de leitura;
-- recortes das letras;
-- métricas e metadados;
-- data e hora do processamento (`createdAt`/`updatedAt`).
+### Operações de Exclusão no Banco de Dados
+- **Exclusão Individual (`DELETE /api/history/{item_id}`):** remove o documento específico do MongoDB via `collection.delete_one()` (pesquisando por `ObjectId` e `string`), expurgando do banco a imagem e todas as suas letras vinculadas. Também remove o item da memória local.
+- **Limpeza Total (`DELETE /api/history`):** executa `collection.delete_many({})` e esvazia a memória local, apagando permanentemente todos os registros de processamento armazenados.
 
 A coleção padrão em desenvolvimento é:
 
@@ -304,20 +316,21 @@ processed_images_prod
 
 Isso evita misturar dados locais com registros de produção.
 
-## 12. Histórico e busca no frontend
+## 12. Histórico e Gerenciamento no Frontend
 
-A interface possui um painel de histórico de imagens processadas com:
+A interface possui um painel completo de histórico de imagens processadas com:
 
-- miniatura da imagem;
-- texto transcrito;
-- nome do arquivo, com o termo pesquisado destacado quando há busca ativa;
-- item clicável para abrir a imagem do histórico e visualizar as letras recortadas;
-- scroll vertical para navegar entre todas as letras recortadas;
-- campo de busca (`Buscar por nome do arquivo salvo...`) que filtra pelo nome do arquivo **ou** pela transcrição no backend, com debounce de 350ms para evitar uma chamada a cada tecla digitada;
-- botão "Atualizar", que recarrega a lista completa ou repete a busca atual;
-- botão de limpar busca (✕) que volta a listar todo o histórico.
-
-A área de recortes usa tamanho fixo e rolagem vertical para mostrar todas as letras quando houver muitas.
+- **Pílula com Contador de Registros:** exibe a quantidade exata de imagens salvas no histórico no cabeçalho;
+- **Botão "Limpar Histórico":** botão de destaque no cabeçalho (visível quando há itens salvos) que solicita confirmação prévia e dispara a exclusão de todas as imagens e letras do banco de dados em lote;
+- **Botão de Exclusão Individual (Lixeira em cada card):** permite apagar uma imagem específica com um clique, solicitando confirmação de segurança com o nome do arquivo e removendo o registro do banco de dados de forma imediata;
+- **Descarregamento Automático:** se a imagem excluída estiver aberta no visualizador do editor, a visualização é resetada para evitar estados órfãos;
+- **Miniatura da imagem:** preview visual rápido do processamento salvo;
+- **Carrossel/Fita de Letras Recortadas:** visualização das miniaturas das primeiras 14 letras com badge para excedentes (`+N`);
+- **Texto transcrito e nome do arquivo:** com destaque visual (*highlight*) dos termos pesquisados quando há busca ativa;
+- **Item Clicável:** clique em qualquer parte do card para carregar o resultado histórico de volta no editor e no inspetor de caracteres;
+- **Campo de Busca com Debounce (350ms):** filtra pelo nome do arquivo **ou** pela transcrição no backend com indicador visual de carregamento;
+- **Botão "Atualizar":** recarrega a lista do banco de dados ou repete a busca atual;
+- **Botão de Limpar Busca (✕):** redefine o filtro e retorna a listagem completa.
 
 ## 13. Ordem correta das letras
 
@@ -364,12 +377,14 @@ Todas as rotas abaixo (exceto `/health` na raiz) ficam sob o prefixo `/api`.
 | GET    | `/api/history/search?q=` | Busca itens do histórico por nome do arquivo ou transcrição             |
 | POST   | `/api/history/save`      | Salva manualmente uma imagem processada no histórico                    |
 | GET    | `/api/history/{item_id}` | Retorna um item específico do histórico por ID                          |
-| OPTIONS| `/api/segment`, `/api/compare`, `/api/history` | Respostas de CORS (preflight)                          |
+| DELETE | `/api/history/{item_id}` | Exclui permanentemente um item e todas as suas letras do banco de dados |
+| DELETE | `/api/history`           | Limpa permanentemente todo o histórico de processamentos no banco de dados |
+| OPTIONS| `/api/segment`, `/api/compare`, `/api/history`, `/api/history/{item_id}` | Respostas de CORS (preflight) |
 | GET    | `/api/health`            | Health check da API                                                     |
 | GET    | `/health`                | Health check equivalente, fora do prefixo `/api`                        |
 | GET    | `/`                      | Rota raiz com nome, versão e status do serviço                          |
 
-> Importante: `/api/history/search` precisa estar registrada **antes** de `/api/history/{item_id}` no router. Como o FastAPI casa rotas na ordem de registro, se a rota dinâmica vier primeiro, uma chamada para `/api/history/search` é interpretada como `item_id="search"` e falha com erro de `ObjectId` inválido. Essa ordem já está correta em `backend/src/api/routes/index.py`.
+> Importante: `/api/history/search` e `/api/history` (DELETE) precisam estar registradas **antes** de `/api/history/{item_id}` no router. Como o FastAPI casa rotas na ordem de registro, se a rota dinâmica vier primeiro, chamadas literais são interpretadas como parâmetro dinâmico e falham com erro de validação. Essa ordem já está correta e testada em `backend/src/api/routes/index.py`.
 
 Em caso de erro não tratado em qualquer rota, o middleware `error_handler.py` captura a exceção, imprime o traceback completo no log do servidor e devolve `500` com o corpo `{"error": "Erro interno do servidor", "message": "<mensagem da exceção>"}` — útil para depurar diretamente pela aba Response do DevTools ou pelos logs do Render.
 
@@ -494,18 +509,18 @@ VITE_API_URL=https://seu-backend.onrender.com/api
 
 ## 19. Testes e verificação
 
-O projeto possui uma suíte completa de 16 testes automatizados no backend e validação de tipagem estrita no frontend:
+O projeto possui uma suíte completa de **22 testes automatizados** no backend e validação de tipagem estrita no frontend:
 
-- `backend/tests/test_segmenter.py` — 12 testes cobrindo segmentação morfológica, texto em baixo contraste, detecção de plágio, geração fiel dos 7 passos teóricos do PDF, separação de letras agrupadas e filtro de elementos não-letras;
-- `backend/tests/test_mongodb_history.py` — comportamento do serviço de MongoDB (resolução de nomes de coleção, documento do histórico e isolamento de ambiente);
-- `backend/tests/test_history_save.py` — salvamento e recuperação de registros com fallback local resiliente.
+- `backend/tests/test_segmenter.py` — 15 testes cobrindo segmentação morfológica, texto em baixo contraste, detecção de plágio, geração fiel dos 7 passos teóricos do PDF, separação de letras agrupadas e filtro de elementos não-letras;
+- `backend/tests/test_mongodb_history.py` — 3 testes cobrindo comportamento do serviço de MongoDB (resolução de nomes de coleção, documento do histórico e isolamento de ambiente);
+- `backend/tests/test_history_save.py` — 4 testes cobrindo salvamento e recuperação de registros com fallback local, exclusão individual com validação de erro 404, limpeza completa de todos os itens e teste de integração no handler.
 
 Comandos para rodar a suíte do backend:
 
 ```bash
 cd backend
 pytest tests/ -q
-# Resultado esperado: 16 passed
+# Resultado esperado: 22 passed
 ```
 
 Para validar a integridade dos tipos e compilação do frontend:
@@ -513,7 +528,7 @@ Para validar a integridade dos tipos e compilação do frontend:
 ```bash
 cd frontend
 npm run build
-# Resultado esperado: ✓ built in ~3s (zero erros de TypeScript)
+# Resultado esperado: ✓ built in ~16s (zero erros de TypeScript)
 ```
 
 ## 20. Estrutura do projeto
@@ -557,6 +572,8 @@ Makefile
 
 ## 22. Dicas de uso
 
+- **Upload em 1 Clique e Validação Rápida:** O seletor de arquivos abre na primeira interação com `<label>` nativo; você também pode arrastar e soltar (drag & drop) arquivos PNG, JPG, JPEG ou WEBP diretamente sobre o card;
+- **Girar Imagens com 1 Clique (Rotação 90°):** Caso a foto ou documento esteja em orientação incorreta, utilize o botão de rotação (`RotateCw`) no card da amostra para reorientá-la instantaneamente via Canvas antes de processar;
 - **Modo Aprimorado (Recomendado):** Ideal para imagens com fontes condensadas, texto corrido ou documentos escaneados com pequenas manchas e molduras;
 - **Modo Acadêmico Puro:** Ideal para demonstração pedagógica dos resultados exatos obtidos com os parâmetros literais do trabalho em PDF;
 - **Uso dos Presets de Configuração:** Utilize os botões rápidos (*Equilibrado*, *Alta Sensib.* e *Anti-Ruído*) para aplicar parâmetros pré-calibrados instantaneamente com um clique;
@@ -564,6 +581,7 @@ Makefile
 - **Visualização Dual e Zoom Lightbox:** Alterne entre a imagem original e a visualização de debug com *bounding boxes* coloridos através dos botões no cabeçalho do card, ou use o ícone de lupa para abrir o visualizador ampliado em tela cheia;
 - **Cópia Instantânea da Transcrição:** Utilize o botão "Copiar IDs" no cabeçalho da galeria para transferir a sequência identificada para a área de transferência;
 - **Aba de Transparência & Limitações:** Consulte a aba *Transparência & Limitações Técnicas* no visualizador de pipeline para entender os operadores matemáticos, kerning e diagnósticos em tempo real da imagem;
+- **Gerenciamento e Limpeza do Banco de Dados:** Exclua registros antigos individualmente clicando no ícone de lixeira do card ou limpe todo o acervo clicando em "Limpar Histórico" no cabeçalho; ambas as ações expurgam as imagens e os recortes salvos definitivamente do MongoDB Atlas;
 - **Ajuste Fino de Sensibilidade:** Em imagens com texto de baixo contraste ou fundo ruidoso, ajuste a sensibilidade e ative as opções *Remover ruídos* e *Melhorar contraste*.
 
 

@@ -18,6 +18,7 @@ import {
   SlidersHorizontal,
   ArrowRight,
   Clock,
+  Trash2,
 } from 'lucide-react';
 import { useSegmenter } from '../../hooks/useSegmenter';
 import { useImageUpload } from '../../hooks/useImageUpload';
@@ -28,7 +29,15 @@ import { PipelineViewer } from '../PipelineViewer';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { ErrorMessage } from '../common/ErrorMessage';
 import { ProcessingOptions, ComparisonResult, HistoryEntry, SegmentResult } from '../../types';
-import { compareImages, getProcessingHistory, searchProcessingHistory, getHistoryItem, saveProcessingResult } from '../../services/api';
+import {
+  compareImages,
+  getProcessingHistory,
+  searchProcessingHistory,
+  getHistoryItem,
+  saveProcessingResult,
+  deleteHistoryItem,
+  clearProcessingHistory,
+} from '../../services/api';
 import './Segmenter.css';
 
 export const Segmenter: React.FC = () => {
@@ -43,6 +52,8 @@ export const Segmenter: React.FC = () => {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [deletingHistoryId, setDeletingHistoryId] = useState<string | null>(null);
+  const [clearingHistory, setClearingHistory] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedHistoryResult, setSelectedHistoryResult] = useState<SegmentResult | null>(null);
   const displayedResult = selectedHistoryResult ?? result;
@@ -240,6 +251,52 @@ export const Segmenter: React.FC = () => {
       setCompareResult(null);
     } catch {
       setSelectedHistoryResult(null);
+    }
+  };
+
+  const handleDeleteHistoryItem = async (itemId: string, itemName?: string) => {
+    const name = itemName || 'esta imagem';
+    if (
+      !window.confirm(
+        `Tem certeza que deseja apagar "${name}" e todos os seus caracteres recortados do histórico e do banco de dados?`
+      )
+    ) {
+      return;
+    }
+
+    setDeletingHistoryId(itemId);
+    try {
+      await deleteHistoryItem(itemId);
+      setSelectedHistoryResult(null);
+      handleHistoryRefresh();
+    } catch (err: any) {
+      const backendMessage = err?.response?.data?.error;
+      alert(backendMessage || 'Não foi possível excluir o item do histórico.');
+    } finally {
+      setDeletingHistoryId(null);
+    }
+  };
+
+  const handleClearHistory = async () => {
+    if (!history.length) return;
+    if (
+      !window.confirm(
+        'Tem certeza que deseja apagar TODO o histórico? Todas as imagens salvas e suas respectivas letras recortadas serão excluídas definitivamente do banco de dados.'
+      )
+    ) {
+      return;
+    }
+
+    setClearingHistory(true);
+    try {
+      await clearProcessingHistory();
+      setSelectedHistoryResult(null);
+      setHistory([]);
+    } catch (err: any) {
+      const backendMessage = err?.response?.data?.error;
+      alert(backendMessage || 'Não foi possível limpar o histórico.');
+    } finally {
+      setClearingHistory(false);
     }
   };
 
@@ -536,16 +593,36 @@ export const Segmenter: React.FC = () => {
               <div className="history-title-wrap">
                 <Clock size={17} className="history-title-icon" />
                 <h3>Histórico de Processamentos</h3>
+                {history.length > 0 && (
+                  <span className="history-count-badge">{history.length}</span>
+                )}
               </div>
-              <button
-                type="button"
-                className={`history-refresh ${historyLoading ? 'loading' : ''}`}
-                onClick={handleHistoryRefresh}
-                title="Recarregar histórico"
-              >
-                <RotateCw size={13} className={historyLoading ? 'spin-icon' : ''} />
-                <span>{historyLoading ? 'Atualizando...' : 'Atualizar'}</span>
-              </button>
+
+              <div className="history-header-actions">
+                {history.length > 0 && (
+                  <button
+                    type="button"
+                    className="history-clear-all-btn"
+                    onClick={() => void handleClearHistory()}
+                    disabled={clearingHistory || historyLoading}
+                    title="Apagar todas as imagens e letras do histórico e do banco de dados"
+                    aria-label="Limpar todo o histórico"
+                  >
+                    <Trash2 size={13} />
+                    <span>{clearingHistory ? 'Limpando...' : 'Limpar Histórico'}</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className={`history-refresh ${historyLoading ? 'loading' : ''}`}
+                  onClick={handleHistoryRefresh}
+                  title="Recarregar histórico"
+                >
+                  <RotateCw size={13} className={historyLoading ? 'spin-icon' : ''} />
+                  <span>{historyLoading ? 'Atualizando...' : 'Atualizar'}</span>
+                </button>
+              </div>
             </div>
 
             <div className={`history-search ${searchQuery ? 'has-value' : ''}`}>
@@ -591,12 +668,19 @@ export const Segmenter: React.FC = () => {
                 </div>
               ) : (
                 history.map((entry, index) => (
-                  <button
-                    key={entry._id ?? entry.sourceName}
-                    type="button"
+                  <div
+                    key={entry._id ?? `${entry.sourceName}-${index}`}
+                    role="button"
+                    tabIndex={0}
                     className="history-item"
                     style={{ animationDelay: `${index * 35}ms` }}
                     onClick={() => void handleHistorySelect(entry._id ?? '')}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        void handleHistorySelect(entry._id ?? '');
+                      }
+                    }}
                   >
                     <div className="history-item-top">
                       {entry.imageData && (
@@ -607,9 +691,24 @@ export const Segmenter: React.FC = () => {
                         />
                       )}
                       <div className="history-item-info">
-                        <span className="history-name">
-                          {highlightMatch(entry.sourceName ?? 'Imagem processada', searchQuery)}
-                        </span>
+                        <div className="history-item-info-top">
+                          <span className="history-name">
+                            {highlightMatch(entry.sourceName ?? 'Imagem processada', searchQuery)}
+                          </span>
+                          <button
+                            type="button"
+                            className={`history-delete-item-btn ${deletingHistoryId === entry._id ? 'loading' : ''}`}
+                            disabled={deletingHistoryId === entry._id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleDeleteHistoryItem(entry._id ?? '', entry.sourceName);
+                            }}
+                            title="Excluir esta imagem e seus caracteres do banco de dados"
+                            aria-label={`Excluir ${entry.sourceName ?? 'imagem'} do histórico`}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                         <span className="history-meta">
                           {entry.createdAt ? new Date(entry.createdAt).toLocaleString('pt-BR') : 'Hoje'}
                         </span>
@@ -651,7 +750,7 @@ export const Segmenter: React.FC = () => {
                         <ArrowRight size={13} />
                       </span>
                     </div>
-                  </button>
+                  </div>
                 ))
               )}
             </div>

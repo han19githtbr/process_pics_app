@@ -171,3 +171,46 @@ class MongoDBService:
         for item in items:
             item['_id'] = str(item.get('_id', ''))
         return items
+
+    def delete_history_item(self, item_id: str) -> bool:
+        """Remove um item do histórico pelo ID (no MongoDB e no fallback local)."""
+        deleted = False
+        clean_id = str(item_id).strip()
+
+        if self.is_enabled and self.collection is not None:
+            try:
+                queries = [{'_id': clean_id}]
+                if ObjectId is not None and ObjectId.is_valid(clean_id):
+                    queries.append({'_id': ObjectId(clean_id)})
+
+                query = {'$or': queries} if len(queries) > 1 else queries[0]
+                res = self.collection.delete_one(query)
+                if res.deleted_count > 0:
+                    deleted = True
+            except (TypeError, ValueError, PyMongoError) as exc:
+                logger.error('Falha ao remover item %s do histórico no MongoDB: %s', clean_id, exc)
+
+        initial_len = len(self._local_history)
+        self._local_history = [
+            item for item in self._local_history
+            if str(item.get('_id')) != clean_id
+        ]
+        if len(self._local_history) < initial_len:
+            deleted = True
+
+        return deleted
+
+    def clear_history(self) -> int:
+        """Remove todos os itens do histórico (no MongoDB e no fallback local)."""
+        deleted_count = 0
+
+        if self.is_enabled and self.collection is not None:
+            try:
+                res = self.collection.delete_many({})
+                deleted_count += res.deleted_count
+            except PyMongoError as exc:
+                logger.error('Falha ao limpar histórico no MongoDB: %s', exc)
+
+        deleted_count += len(self._local_history)
+        self._local_history.clear()
+        return deleted_count

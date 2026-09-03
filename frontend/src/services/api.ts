@@ -71,3 +71,13 @@ export const getHistoryItem = async (itemId: string): Promise<HistoryEntry | nul
   const response = await axios.get(`${API_URL}/history/${itemId}`);
   return response.data ?? null;
 };
+
+export const deleteHistoryItem = async (itemId: string): Promise<boolean> => {
+  const response = await axios.delete(`${API_URL}/history/${itemId}`);
+  return response.status === 200;
+};
+
+export const clearProcessingHistory = async (): Promise<boolean> => {
+  const response = await axios.delete(`${API_URL}/history`);
+  return response.status === 200;
+};
