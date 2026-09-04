@@ -1,6 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Eye, EyeOff, LockKeyhole, LogIn, ScanSearch } from 'lucide-react';
-import { login } from '../../services/api';
+import { checkSession, login } from '../../services/api';
 import './Login.css';
 
 type LoginProps = { onAuthenticated: () => void };
@@ -28,9 +28,16 @@ export const Login = ({ onAuthenticated }: LoginProps) => {
     setError(null);
     try {
       await login(normalizedEmail, password);
+      if (!(await checkSession())) {
+        throw new Error('A sessão não foi persistida pelo navegador.');
+      }
       onAuthenticated();
     } catch (requestError: any) {
-      setError(requestError?.response?.data?.detail || 'E-mail ou senha incorretos.');
+      setError(
+        requestError?.response?.data?.detail ||
+          requestError?.message ||
+          'Não foi possível iniciar a sessão.'
+      );
     } finally {
       setLoading(false);
     }

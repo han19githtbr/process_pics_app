@@ -54,8 +54,10 @@ class Settings:
     AUTH_SECRET_KEY = (os.getenv('AUTH_SECRET_KEY') or '').strip()
     AUTH_COOKIE_NAME = 'pattern_checker_session'
     AUTH_SESSION_SECONDS = int(os.getenv('AUTH_SESSION_SECONDS', 28800))
-    AUTH_COOKIE_SECURE = os.getenv('AUTH_COOKIE_SECURE', 'false').strip().lower() == 'true'
     AUTH_COOKIE_SAMESITE = os.getenv(
         'AUTH_COOKIE_SAMESITE',
         'none' if ENVIRONMENT == 'production' else 'lax',
     ).strip().lower()
+    # SameSite=None só é aceito pelos navegadores quando o cookie também é Secure.
+    requested_cookie_secure = os.getenv('AUTH_COOKIE_SECURE', 'false').strip().lower() == 'true'
+    AUTH_COOKIE_SECURE = requested_cookie_secure or AUTH_COOKIE_SAMESITE == 'none'

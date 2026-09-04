@@ -283,7 +283,7 @@ python -c "from src.api.auth import create_password_hash; print(create_password_
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-Copie os resultados para `AUTH_PASSWORD_HASH` e `AUTH_SECRET_KEY` no arquivo `backend/.env`, e configure `AUTH_EMAIL` com o e-mail administrativo. O arquivo `.env` é ignorado pelo Git. Em produção, defina `AUTH_COOKIE_SECURE=true` e `AUTH_COOKIE_SAMESITE=none`: como Vercel e Render usam domínios diferentes, o navegador exige cookie `Secure` e `SameSite=None` para manter a sessão. As rotas de segmentação, comparação e histórico exigem essa sessão; `/health` permanece público para monitoramento.
+Copie os resultados para `AUTH_PASSWORD_HASH` e `AUTH_SECRET_KEY` no arquivo `backend/.env`, e configure `AUTH_EMAIL` com o e-mail administrativo. O arquivo `.env` é ignorado pelo Git. Em produção, defina `AUTH_COOKIE_SECURE=true` e `AUTH_COOKIE_SAMESITE=none`: como Vercel e Render usam domínios diferentes, o navegador exige cookie `Secure` e `SameSite=None` para manter a sessão. O backend também força `Secure` quando `SameSite=None`, evitando a combinação inválida exibida pelo Chrome no Android. Após o login, o frontend confirma `/api/auth/session` antes de abrir o dashboard. As rotas de segmentação, comparação e histórico exigem essa sessão; `/health` permanece público para monitoramento.
 
 Para produção, use uma coleção separada:
 
