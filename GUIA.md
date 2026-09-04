@@ -256,7 +256,26 @@ MONGODB_DB_NAME=pattern_checker
 MONGODB_COLLECTION_NAME=processed_images
 CACHE_ENABLED=false
 MAX_IMAGE_SIZE=1800
+AUTH_EMAIL=admin@example.com
+AUTH_PASSWORD_HASH=pbkdf2_sha256$310000$<salt-base64url>$<hash-base64url>
+AUTH_SECRET_KEY=gere-uma-chave-aleatoria-com-secrets-token-urlsafe
+AUTH_SESSION_SECONDS=28800
+AUTH_COOKIE_SECURE=false
+AUTH_COOKIE_SAMESITE=lax
 ```
+
+### 7.1. Acesso administrativo e proteção das credenciais
+
+A aplicação agora inicia em uma tela de login e libera o processamento somente após uma sessão administrativa válida. O e-mail fica apenas no ambiente do backend; a senha nunca é armazenada em texto puro, no código-fonte ou no bundle do frontend. O backend compara a senha com um hash PBKDF2-SHA256 e entrega uma sessão assinada em cookie `HttpOnly`, com validade configurável.
+
+Gere o hash da senha e uma chave de sessão diretamente no terminal, dentro da raiz do projeto (não inclua os valores resultantes neste guia):
+
+```powershell
+python -c "from src.api.auth import create_password_hash; print(create_password_hash('SUA_SENHA'))"
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Copie os resultados para `AUTH_PASSWORD_HASH` e `AUTH_SECRET_KEY` no arquivo `backend/.env`, e configure `AUTH_EMAIL` com o e-mail administrativo. O arquivo `.env` é ignorado pelo Git. Em produção, defina `AUTH_COOKIE_SECURE=true` e `AUTH_COOKIE_SAMESITE=none`: como Vercel e Render usam domínios diferentes, o navegador exige cookie `Secure` e `SameSite=None` para manter a sessão. As rotas de segmentação, comparação e histórico exigem essa sessão; `/health` permanece público para monitoramento.
 
 Para produção, use uma coleção separada:
 
@@ -428,6 +447,9 @@ Todas as rotas abaixo (exceto `/health` na raiz) ficam sob o prefixo `/api`.
 | GET    | `/api/history/{item_id}` | Retorna um item específico do histórico por ID                          |
 | DELETE | `/api/history/{item_id}` | Exclui permanentemente um item e todas as suas letras do banco de dados |
 | DELETE | `/api/history`           | Limpa permanentemente todo o histórico de processamentos no banco de dados |
+| POST   | `/api/auth/login`       | Valida o e-mail e a senha administrativa e cria sessão HttpOnly |
+| POST   | `/api/auth/logout`      | Encerra a sessão administrativa |
+| GET    | `/api/auth/session`     | Verifica se existe uma sessão válida |
 | OPTIONS| `/api/segment`, `/api/compare`, `/api/history`, `/api/history/{item_id}` | Respostas de CORS (preflight) |
 | GET    | `/api/health`            | Health check da API                                                     |
 | GET    | `/health`                | Health check equivalente, fora do prefixo `/api`                        |
@@ -446,6 +468,8 @@ backend/src/
   server.py                          # cria o FastAPI app, CORS e inclui o router com prefixo /api
   config/settings.py                 # lê variáveis de ambiente (.env)
   api/routes/index.py                # define todas as rotas
+  api/auth.py                         # hash PBKDF2 e sessão HMAC em cookie HttpOnly
+  api/handlers/auth_handler.py       # login, logout e status da sessão
   api/handlers/letter_segmenter_handler.py  # orquestra segmentação, comparação e histórico
   api/middleware/error_handler.py    # captura exceções não tratadas e devolve JSON 500
   core/factory/segmenter_factory.py  # cria o segmentador padrão

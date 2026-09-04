@@ -2,6 +2,16 @@ import axios from 'axios';
 import { ProcessingOptions, SegmentResult, ComparisonResult, HistoryEntry } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+const requestConfig = { withCredentials: true };
+
+export const login = async (email: string, password: string): Promise<void> => {
+  await axios.post(`${API_URL}/auth/login`, { email, password }, requestConfig);
+};
+
+export const checkSession = async (): Promise<boolean> => {
+  const response = await axios.get(`${API_URL}/auth/session`, requestConfig);
+  return response.data?.authenticated === true;
+};
 
 export const segmentImage = async (
   image: string,
@@ -12,6 +22,7 @@ export const segmentImage = async (
     `${API_URL}/segment`,
     { image, fileName, options: options || {} },
     {
+      ...requestConfig,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -30,6 +41,7 @@ export const compareImages = async (
     `${API_URL}/compare`,
     { sourceImage, comparisonImage, options: options || {} },
     {
+      ...requestConfig,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -40,13 +52,13 @@ export const compareImages = async (
 };
 
 export const getProcessingHistory = async (): Promise<HistoryEntry[]> => {
-  const response = await axios.get(`${API_URL}/history`);
+  const response = await axios.get(`${API_URL}/history`, requestConfig);
   return response.data?.items ?? [];
 };
 
 export const searchProcessingHistory = async (query: string): Promise<HistoryEntry[]> => {
   const response = await axios.get(`${API_URL}/history/search`, {
-    params: { q: query },
+    params: { q: query }, ...requestConfig,
   });
   return response.data?.items ?? [];
 };
@@ -59,6 +71,7 @@ export const saveProcessingResult = async (payload: {
   metadata?: Record<string, any>;
 }): Promise<HistoryEntry | null> => {
   const response = await axios.post(`${API_URL}/history/save`, payload, {
+    ...requestConfig,
     headers: {
       'Content-Type': 'application/json',
     },
@@ -68,16 +81,16 @@ export const saveProcessingResult = async (payload: {
 };
 
 export const getHistoryItem = async (itemId: string): Promise<HistoryEntry | null> => {
-  const response = await axios.get(`${API_URL}/history/${itemId}`);
+  const response = await axios.get(`${API_URL}/history/${itemId}`, requestConfig);
   return response.data ?? null;
 };
 
 export const deleteHistoryItem = async (itemId: string): Promise<boolean> => {
-  const response = await axios.delete(`${API_URL}/history/${itemId}`);
+  const response = await axios.delete(`${API_URL}/history/${itemId}`, requestConfig);
   return response.status === 200;
 };
 
 export const clearProcessingHistory = async (): Promise<boolean> => {
-  const response = await axios.delete(`${API_URL}/history`);
+  const response = await axios.delete(`${API_URL}/history`, requestConfig);
   return response.status === 200;
 };

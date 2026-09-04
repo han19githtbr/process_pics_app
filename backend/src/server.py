@@ -6,10 +6,19 @@ Servidor principal da API de segmentação de letras.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Usar imports relativos
-from .config.settings import Settings
-from .api.routes import router
-from .api.middleware.error_handler import error_handler
+# O fallback permite executar tanto como módulo quanto como arquivo direto.
+if __package__:
+    from .config.settings import Settings
+    from .api.routes import router
+    from .api.middleware.error_handler import error_handler
+else:
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from src.config.settings import Settings
+    from src.api.routes import router
+    from src.api.middleware.error_handler import error_handler
 
 settings = Settings()
 
@@ -20,6 +29,7 @@ app = FastAPI(
     version="1.0.0",
     debug=settings.DEBUG
 )
+app.state.settings = settings
 
 # Configurar CORS
 app.add_middleware(

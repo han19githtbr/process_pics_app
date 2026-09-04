@@ -47,3 +47,15 @@ class Settings:
 
     # Performance
     CACHE_ENABLED = os.getenv('CACHE_ENABLED', 'false').strip().lower() == 'true'
+
+    # Autenticação: somente o hash da senha deve ser armazenado no ambiente.
+    AUTH_EMAIL = (os.getenv('AUTH_EMAIL') or '').strip().lower()
+    AUTH_PASSWORD_HASH = (os.getenv('AUTH_PASSWORD_HASH') or '').strip()
+    AUTH_SECRET_KEY = (os.getenv('AUTH_SECRET_KEY') or '').strip()
+    AUTH_COOKIE_NAME = 'pattern_checker_session'
+    AUTH_SESSION_SECONDS = int(os.getenv('AUTH_SESSION_SECONDS', 28800))
+    AUTH_COOKIE_SECURE = os.getenv('AUTH_COOKIE_SECURE', 'false').strip().lower() == 'true'
+    AUTH_COOKIE_SAMESITE = os.getenv(
+        'AUTH_COOKIE_SAMESITE',
+        'none' if ENVIRONMENT == 'production' else 'lax',
+    ).strip().lower()

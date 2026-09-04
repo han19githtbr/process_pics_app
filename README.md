@@ -83,7 +83,7 @@ npm install
 ```bash
 # backend
 cd backend
-python src/server.py
+python -m src.server
 
 # frontend em outra sessão/terminal
 cd frontend
