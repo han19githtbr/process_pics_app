@@ -14,6 +14,7 @@ A solução é desenhada para:
 - **rejeitar elementos não-textuais** (linhas, molduras, sublinhados, ruídos e artefatos gráficos);
 - disponibilizar um painel de **Transparência e Honestidade Técnica**, explicando as causas físicas e matemáticas de imperfeições da visão computacional tradicional;
 - manter todas as funcionalidades adicionais desenvolvidas (comparação de plágio, histórico persistido no MongoDB Atlas com fallback local, exclusão individual de imagens e limpeza total do banco de dados, rotação 90° de imagens, exportação em `.zip`, alternador de temas claro/escuro).
+- funcionar como Progressive Web App (PWA), com instalação no dispositivo, modo standalone e carregamento do shell visual em cache.
 
 ## 2. Pipeline das 7 Etapas do Trabalho em PDF
 
@@ -164,6 +165,7 @@ $$C = 0.35 \cdot S_{\text{morf}} + 0.30 \cdot S_{\text{contraste}} + 0.20 \cdot 
   * **Contador de Registros:** indicador visual com a contagem exata de imagens salvas;
   * **Busca com Debounce, Contador e Realce:** pesquisa por nome do arquivo ou transcrição com marcação visual dos termos encontrados e totalização de resultados.
 - **Exportação em ZIP:** download de todas as letras segmentadas e da transcrição textual.
+- **Progressive Web App (PWA):** manifesto instalável, ícones do Pattern Checker e service worker registrado apenas no build de produção. O shell do frontend pode abrir com recursos estáticos em cache quando estiver sem conexão; chamadas à API, login, histórico e processamento continuam dependendo do backend.
 
 ## 5. Design System, Arquitetura Visual e Responsividade
 
@@ -218,6 +220,12 @@ A interface da aplicação foi concebida sob o padrão visual **AI & Vision Stud
 - npm
 - Conta no MongoDB Atlas (opcional — a aplicação opera com fallback local resiliente em memória, ver seção 11)
 - Git
+
+### 5.3. PWA e instalação
+
+O frontend é um PWA nativo, sem dependência adicional de plugin. O arquivo `frontend/public/manifest.webmanifest` define o nome, ícones, cores, modo `standalone`, orientação e rota inicial. O arquivo `frontend/public/sw.js` armazena apenas recursos estáticos do mesmo domínio e usa fallback para `index.html`; não armazena credenciais, cookies, imagens enviadas ou respostas da API.
+
+O service worker é registrado somente quando o frontend é compilado em produção (`npm run build`). Em desenvolvimento, o Vite não registra o service worker para evitar cache durante alterações. Para instalar, publique o build em HTTPS e use a opção **Instalar aplicativo** do navegador. `localhost` também é considerado seguro pelos navegadores durante testes locais.
 
 ## 6. Preparar o backend
 
@@ -511,6 +519,10 @@ frontend/src/
   hooks/useSegmenter.ts                         # chama POST /api/segment e mantém estado reativo
   hooks/useImageUpload.ts                       # controla upload/preview de imagem em base64
   services/api.ts                               # client axios para todos os endpoints da API
+frontend/public/
+  manifest.webmanifest                          # metadados de instalação do PWA
+  sw.js                                         # cache do shell estático em produção
+  icons/                                        # ícones instaláveis em SVG (geral, 192 e 512 px)
 ```
 
 A interface oferece:
@@ -671,3 +683,15 @@ Embora o projeto tenha nascido como exercício acadêmico da disciplina TM438, o
 - **Ajuste Fino de Sensibilidade:** Em imagens com texto de baixo contraste ou fundo ruidoso, ajuste a sensibilidade e ative as opções *Remover ruídos* e *Melhorar contraste*.
 
 
+## Alguns comandos úteis
+
+cd "C:\Users\Handy Claude\Desktop\processamento-de-imagens\backend"
+
+ ## Gerar AUTH_PASSWORD_HASH
+
+ python -c "from src.api.auth import create_password_hash; print(create_password_hash('SUA_SENHA_AQUI'))"
+
+
+ ## Gerar AUTH_SECRET_KEY
+
+ python -c "import secrets; print(secrets.token_urlsafe(32))" 
