@@ -8,7 +8,11 @@ function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
+    const handleAuthExpired = () => setAuthenticated(false);
+    window.addEventListener('auth-expired', handleAuthExpired);
     checkSession().then(setAuthenticated).catch(() => setAuthenticated(false));
+
+    return () => window.removeEventListener('auth-expired', handleAuthExpired);
   }, []);
 
   if (authenticated === null) return <div className="app app-loading" aria-label="Carregando aplicação" />;
