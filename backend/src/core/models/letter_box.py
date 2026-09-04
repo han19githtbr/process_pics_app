@@ -13,6 +13,7 @@ class LetterBox:
     id: Optional[int] = None
     line: Optional[int] = None
     image: Optional[str] = None
+    confidence_details: Optional[dict] = None
 
     def __post_init__(self):
         """Garante tipos nativos do Python (evita numpy.intc/float32 no JSON)."""

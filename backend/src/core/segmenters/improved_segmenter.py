@@ -124,6 +124,7 @@ class ImprovedSegmenter(ILetterSegmenter):
 
         processing_time = time.time() - start_time
         transcript = self._build_transcript(validated)
+        conf_breakdown = self._calculate_confidence_breakdown(validated, processed)
 
         return SegmentResult(
             letters=validated,
@@ -134,13 +135,14 @@ class ImprovedSegmenter(ILetterSegmenter):
                 'height': image.shape[0],
                 'total_letters': len(validated),
                 'processing_time': processing_time,
-                'confidence_score': self._calculate_overall_confidence(validated),
+                'confidence_score': conf_breakdown['overall'],
+                'confidence_breakdown': conf_breakdown,
                 'scale': scale,
                 'edge_pixels': int(cv2.countNonZero(edges)),
                 'splits_count': splits_count,
                 'filtered_count': filtered_count,
                 'warnings': self._build_quality_warnings(
-                    validated, components, splits_count, filtered_count
+                    validated, components, splits_count, filtered_count, conf_breakdown
                 ),
                 'transcript': transcript,
                 'mode': getattr(self.options, 'mode', 'enhanced'),
@@ -248,10 +250,10 @@ class ImprovedSegmenter(ILetterSegmenter):
         ]
     
     def _detect_components(self, binary: np.ndarray, edges: Optional[np.ndarray] = None) -> List[Dict]:
-        """Detecta componentes conectados e separa letras agrupadas usando perfil de projeção vertical."""
+        """Detecta componentes conectados, associa diacríticos/pingos e separa letras agrupadas."""
         num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(binary, 8)
         
-        components: List[Dict] = []
+        raw_components: List[Dict] = []
 
         for i in range(1, num_labels):
             comp = {
@@ -272,16 +274,129 @@ class ImprovedSegmenter(ILetterSegmenter):
                 contours, _ = cv2.findContours(crop, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                 comp['contour_count'] = len(contours)
 
-            # Separa letras coladas/agrupadas se a opção estiver ativada
+            raw_components.append(comp)
+
+        # Fusão inteligente de acentos e pingos (i, j, acentos, pontuações compostas)
+        merged_components = self._merge_diacritics(raw_components)
+
+        # Separa letras coladas/agrupadas se a opção estiver ativada
+        components: List[Dict] = []
+        for comp in merged_components:
             split_result = self._split_wide_component(comp, binary)
             components.extend(split_result)
 
         return components
 
+    def _merge_diacritics(self, components: List[Dict]) -> List[Dict]:
+        """
+        Funde acentos, pingos (i, j) e marcas flutuantes com o caractere principal.
+        Evita que pingos e acentos fiquem isolados ou sejam descartados como ruído.
+        """
+        if not components:
+            return []
+
+        min_size = max(3, int(self.options.min_letter_size))
+        bases = [c for c in components if c['height'] >= max(7, min_size * 2) and c['area'] >= 20]
+        smalls = [c for c in components if c not in bases]
+
+        if not smalls or not bases:
+            return components
+
+        merged = []
+        used_smalls = set()
+
+        for b in bases:
+            bx, by, bw, bh = b['x'], b['y'], b['width'], b['height']
+            bx2, by2 = bx + bw, by + bh
+            b_area = b['area']
+
+            for s in smalls:
+                if id(s) in used_smalls:
+                    continue
+                sx, sy, sw, sh = s['x'], s['y'], s['width'], s['height']
+                sx2, sy2 = sx + sw, sy + sh
+
+                overlap = min(bx2, sx2) - max(bx, sx)
+                if overlap >= -2:
+                    # Caso 1: Acento ou pingo acima (i, j, á, é, ã, !)
+                    if sy < by and (by - sy2) <= max(bh * 0.85, 18):
+                        bx = min(bx, sx)
+                        by = min(by, sy)
+                        bx2 = max(bx2, sx2)
+                        by2 = max(by2, sy2)
+                        b_area += s['area']
+                        used_smalls.add(id(s))
+                    # Caso 2: Pingo de pontuação ou cedilha abaixo (ç, ?, !)
+                    elif sy >= by2 and (sy - by2) <= max(bh * 0.55, 12):
+                        bx = min(bx, sx)
+                        by = min(by, sy)
+                        bx2 = max(bx2, sx2)
+                        by2 = max(by2, sy2)
+                        b_area += s['area']
+                        used_smalls.add(id(s))
+
+            merged_comp = dict(b)
+            merged_comp.update({
+                'x': bx,
+                'y': by,
+                'width': bx2 - bx,
+                'height': by2 - by,
+                'area': b_area,
+                'centroid': (bx + (bx2 - bx) / 2.0, by + (by2 - by) / 2.0),
+            })
+            merged.append(merged_comp)
+
+        for s in smalls:
+            if id(s) not in used_smalls and s['area'] >= 8 and s['width'] >= min_size:
+                merged.append(s)
+
+        return merged
+
+    def _is_single_wide_glyph(self, crop: np.ndarray) -> bool:
+        """
+        Verifica se um componente largo corresponde a uma única letra nativamente larga ('m', 'w', 'M', 'W'),
+        evitando que seja indevidamente fatiada em múltiplos fragmentos.
+        """
+        h, w = crop.shape[:2]
+        if h < 8 or w < 8:
+            return False
+        aspect = w / max(h, 1)
+        if not (1.05 <= aspect <= 1.85):
+            return False
+
+        proj = np.count_nonzero(crop, axis=0).astype(float)
+        k = max(3, int(w * 0.08))
+        if k % 2 == 0:
+            k += 1
+        smooth = np.convolve(proj, np.ones(k) / k, mode='same')
+        max_val = np.max(smooth)
+        if max_val == 0:
+            return False
+
+        peaks = []
+        for i in range(1, w - 1):
+            if smooth[i] >= smooth[i - 1] and smooth[i] >= smooth[i + 1] and smooth[i] > max_val * 0.50:
+                if not peaks or (i - peaks[-1]) >= max(3, int(w * 0.18)):
+                    peaks.append(i)
+
+        # Assinatura de 'm'/'M': 3 hastes verticais distribuídas
+        if len(peaks) == 3:
+            p1, p2, p3 = peaks
+            if p1 <= 0.35 * w and 0.35 * w <= p2 <= 0.65 * w and p3 >= 0.65 * w:
+                return True
+
+        # Assinatura de 'w'/'W': 2 picos largos externos com vértice intermediário
+        if len(peaks) == 2:
+            p1, p2 = peaks
+            if p1 <= 0.40 * w and p2 >= 0.60 * w and aspect <= 1.45:
+                return True
+
+        return False
+
     def _split_wide_component(self, component: Dict, binary: np.ndarray) -> List[Dict]:
         """
         Separa grupos de letras coladas/agrupadas usando análise de projeção vertical.
-        Identifica vales de menor densidade de tinta entre caracteres vizinhos.
+        Identifica vales de menor densidade de tinta entre caracteres vizinhos, preservando 'm' e 'w'.
         """
         if not getattr(self.options, 'split_grouped_letters', True):
             return [component]
@@ -290,9 +405,6 @@ class ImprovedSegmenter(ILetterSegmenter):
         height = component['height']
         min_size = max(3, int(self.options.min_letter_size))
 
-        # Uma letra latina típica tem aspect_ratio (largura / altura) entre 0.25 e 0.95.
-        # Letras largas excepcionais ('W', 'M') atingem cerca de 1.05 a 1.15.
-        # Se a largura superar 1.15 * altura, o componente tem forte probabilidade de agrupar 2 ou mais letras.
         if width < max(2 * min_size, int(height * 1.15)):
             return [component]
 
@@ -300,9 +412,14 @@ class ImprovedSegmenter(ILetterSegmenter):
         if crop.size == 0:
             return [component]
 
+        # Se for uma única letra nativamente larga ('m', 'w', 'M', 'W'), não dividir!
+        if self._is_single_wide_glyph(crop):
+            return [component]
+
         # Perfil de projeção vertical de pixels de tinta
         projection = np.count_nonzero(crop, axis=0).astype(float)
-        if len(projection) < 2 * min_size:
+        min_char_w = max(min_size, int(height * 0.18))
+        if len(projection) < 2 * min_char_w:
             return [component]
 
         # Suavização com média móvel para evitar ruídos de 1 pixel
@@ -318,19 +435,19 @@ class ImprovedSegmenter(ILetterSegmenter):
         valley_threshold = max(1.0, max_val * 0.42)
         cuts = []
 
-        for i in range(min_size, width - min_size):
+        for i in range(min_char_w, width - min_char_w):
             if (smooth_proj[i] <= valley_threshold and
                 smooth_proj[i] <= smooth_proj[i - 1] and
                 smooth_proj[i] <= smooth_proj[i + 1]):
                 
-                if not cuts or (i - cuts[-1]) >= min_size:
+                if not cuts or (i - cuts[-1]) >= min_char_w:
                     cuts.append(i)
 
         # Fallback: Se for muito largo (largura >= 1.6 * altura) e não encontrou vales estritos,
         # procura o mínimo global na região intermediária
         if not cuts and width >= int(height * 1.6):
-            mid_start = min_size
-            mid_end = width - min_size
+            mid_start = min_char_w
+            mid_end = width - min_char_w
             if mid_end > mid_start:
                 min_idx = mid_start + int(np.argmin(smooth_proj[mid_start:mid_end]))
                 if smooth_proj[min_idx] < max_val * 0.70:
@@ -343,10 +460,10 @@ class ImprovedSegmenter(ILetterSegmenter):
         intervals = []
         curr_start = 0
         for cut in cuts:
-            if cut - curr_start >= min_size:
+            if cut - curr_start >= min_char_w:
                 intervals.append((curr_start, cut))
                 curr_start = cut
-        if width - curr_start >= min_size:
+        if width - curr_start >= min_char_w:
             intervals.append((curr_start, width))
 
         if len(intervals) < 2:
@@ -436,13 +553,20 @@ class ImprovedSegmenter(ILetterSegmenter):
                 if aspect_ratio > 3.8 or (aspect_ratio > 2.5 and h <= 6):
                     continue
 
-                # 4. Rejeição de linhas verticais (molduras laterais, divisórias longas)
-                # Letras finas como 'I' e '1' podem ter h/w até 10-12, mas com altura contida na linha (h <= 70)
-                if (h / max(w, 1)) > 14.0 or ((h / max(w, 1)) > 5.0 and h > 80) or (w <= 2 and h > 40):
+                # 4. Rejeição de linhas verticais (molduras laterais, divisórias longas de página)
+                # Letras finas como 'l', 'I', '1' podem ter h/w até 10-12 em fontes grandes (h ~ 100px),
+                # mas não ultrapassam uma fração substancial da altura total da imagem.
+                is_vertical_line = (
+                    (h / max(w, 1)) > 20.0 or
+                    ((h / max(w, 1)) > 12.0 and h > max(120, int(img_h * 0.20))) or
+                    ((h / max(w, 1)) > 6.0 and h > max(180, int(img_h * 0.30))) or
+                    (w <= 2 and h > 40)
+                )
+                if is_vertical_line:
                     continue
 
-                # 5. Rejeição de blocos sólidos geométricos
-                if density > 0.95 and area > 140 and min(w, h) > 10:
+                # 5. Rejeição de blocos sólidos geométricos (quadrados/retângulos compactos, preservando caracteres monolineares como 'l', 'I', '1')
+                if density > 0.95 and area > 140 and min(w, h) > 10 and (0.25 <= aspect_ratio <= 3.5):
                     continue
 
                 # 6. Rejeição de poeiras hiper-esparsas
@@ -474,19 +598,21 @@ class ImprovedSegmenter(ILetterSegmenter):
                     if std_val < 16.0 or dyn_range < 35.0:
                         continue
 
-            min_component_area = max(20, min_size * min_size)
+            # Limite mínimo de área adaptativo:
+            # Rejeita ruídos e poeiras irregulares (área < 16), preservando caracteres compactos (área >= 20).
+            min_component_area = max(16, min_size * min_size)
 
             is_valid = (
                 area >= min_component_area and
-                area_ratio >= max(0.00010, 2.0 / max(total_area, 1)) and
+                area_ratio >= (2.0 / max(total_area, 1)) and
                 w >= min_size and
                 h >= min_size and
                 w <= max_size and
                 h <= max_size and
-                aspect_ratio >= 0.05 and
+                aspect_ratio >= 0.04 and
                 aspect_ratio <= 3.8 and
-                density >= 0.08 and
-                (density <= 0.98 or min(w, h) <= 10)
+                density >= 0.06 and
+                (density <= 0.98 or min(w, h) <= 12)
             )
 
             if is_valid:
@@ -495,28 +621,34 @@ class ImprovedSegmenter(ILetterSegmenter):
         return filtered
     
     def _group_by_lines(self, components: List[Dict]) -> List[List[Dict]]:
-        """Agrupa componentes por linha."""
+        """Agrupa componentes por linha usando centro vertical robusto e ordenação espacial."""
         if not components:
             return []
-        
-        sorted_comps = sorted(components, key=lambda c: c['y'])
-        avg_height = np.median([c['height'] for c in sorted_comps])
-        line_threshold = avg_height * 0.5
-        
-        lines = []
-        current_line = [sorted_comps[0]]
-        
-        for comp in sorted_comps[1:]:
-            if abs(comp['y'] - current_line[-1]['y']) <= line_threshold:
-                current_line.append(comp)
+
+        sorted_comps = sorted(components, key=lambda c: (c['y'] + c['height'] / 2.0, c['x']))
+        lines: List[List[Dict]] = []
+
+        for comp in sorted_comps:
+            cy = comp['y'] + comp['height'] / 2.0
+            best_line = None
+            best_dist = float('inf')
+
+            for line in lines:
+                line_med_cy = float(np.median([c['y'] + c['height'] / 2.0 for c in line]))
+                line_med_h = float(np.median([c['height'] for c in line]))
+                dist = abs(cy - line_med_cy)
+                if dist <= line_med_h * 0.65:
+                    if dist < best_dist:
+                        best_dist = dist
+                        best_line = line
+
+            if best_line is not None:
+                best_line.append(comp)
             else:
-                lines.append(sorted(current_line, key=lambda c: c['x']))
-                current_line = [comp]
-        
-        if current_line:
-            lines.append(sorted(current_line, key=lambda c: c['x']))
-        
-        return lines
+                lines.append([comp])
+
+        lines.sort(key=lambda line: float(np.median([c['y'] for c in line])))
+        return [sorted(line, key=lambda c: c['x']) for line in lines]
     
     def _segment_line(self, line: List[Dict], binary: np.ndarray, line_number: int,
                       raw_image: Optional[np.ndarray] = None) -> List[LetterBox]:
@@ -684,12 +816,95 @@ class ImprovedSegmenter(ILetterSegmenter):
             return 0.0
         return sum(l.confidence for l in letters) / len(letters)
 
+    def _calculate_confidence_breakdown(
+        self,
+        letters: List[LetterBox],
+        image: Optional[np.ndarray] = None,
+    ) -> Dict[str, Any]:
+        """
+        Calcula a porcentagem de confiabilidade da segmentação e seu detalhamento de forma
+        100% transparente em relação aos caracteres e métricas obtidas na imagem.
+        Avalia 4 pilares:
+        1. Morfologia Tipográfica (Aspect Ratio médio) - peso 35%
+        2. Contraste e Nitidez de Tinta (Desvio padrão e amplitude dinâmica) - peso 30%
+        3. Coerência e Alinhamento de Linha (Razão de altura com a mediana da linha) - peso 20%
+        4. Solidez e Densidade de Preenchimento (Área de tinta / Bounding Box) - peso 15%
+        """
+        if not letters:
+            return {
+                'overall': 0.0,
+                'letter_average': 0.0,
+                'aspect_ratio_score': 0.0,
+                'contrast_score': 0.0,
+                'line_coherence_score': 0.0,
+                'density_score': 0.0,
+                'weights': {
+                    'aspect_ratio': 0.35,
+                    'contrast': 0.30,
+                    'line_coherence': 0.20,
+                    'density': 0.15,
+                },
+                'evaluated_letters': 0,
+                'description': 'Nenhum caractere detectado para cálculo de confiabilidade.',
+            }
+
+        total_letters = len(letters)
+
+        # Assegura que cada caractere possua seus detalhes de confiança
+        for letter in letters:
+            if getattr(letter, 'confidence_details', None) is None:
+                if hasattr(self.validator, 'calculate_confidence_details') and image is not None:
+                    letter.confidence_details = self.validator.calculate_confidence_details(letter, image)
+                else:
+                    letter.confidence_details = {
+                        'aspect_ratio': letter.confidence,
+                        'contrast': letter.confidence,
+                        'line_coherence': letter.confidence,
+                        'density': letter.confidence,
+                        'overall': letter.confidence,
+                    }
+
+        avg_ar = sum(float(l.confidence_details.get('aspect_ratio', l.confidence)) for l in letters) / total_letters
+        avg_contrast = sum(float(l.confidence_details.get('contrast', l.confidence)) for l in letters) / total_letters
+        avg_line = sum(float(l.confidence_details.get('line_coherence', l.confidence)) for l in letters) / total_letters
+        avg_density = sum(float(l.confidence_details.get('density', l.confidence)) for l in letters) / total_letters
+
+        # A média ponderada dos 4 pilares globais
+        overall = 0.35 * avg_ar + 0.30 * avg_contrast + 0.20 * avg_line + 0.15 * avg_density
+        overall = round(float(min(1.0, max(0.0, overall))), 4)
+        letter_avg = round(float(sum(l.confidence for l in letters) / total_letters), 4)
+
+        description = (
+            f"Confiabilidade geral de {overall * 100:.1f}% obtida pela média ponderada dos 4 pilares em "
+            f"{total_letters} caractere(s): Morfologia Tipográfica ({avg_ar * 100:.1f}%), "
+            f"Contraste de Tinta ({avg_contrast * 100:.1f}%), Coerência de Linha ({avg_line * 100:.1f}%) "
+            f"e Solidez/Densidade ({avg_density * 100:.1f}%)."
+        )
+
+        return {
+            'overall': overall,
+            'letter_average': letter_avg,
+            'aspect_ratio_score': round(avg_ar, 4),
+            'contrast_score': round(avg_contrast, 4),
+            'line_coherence_score': round(avg_line, 4),
+            'density_score': round(avg_density, 4),
+            'weights': {
+                'aspect_ratio': 0.35,
+                'contrast': 0.30,
+                'line_coherence': 0.20,
+                'density': 0.15,
+            },
+            'evaluated_letters': total_letters,
+            'description': description,
+        }
+
     def _build_quality_warnings(
         self,
         letters: List[LetterBox],
         components: List[Dict],
         splits_count: int = 0,
         filtered_count: int = 0,
+        conf_breakdown: Optional[Dict[str, Any]] = None,
     ) -> List[str]:
         """Gera explicações transparentes sobre a detecção, imperfeições e limites do método."""
         warnings = []
@@ -714,9 +929,16 @@ class ImprovedSegmenter(ILetterSegmenter):
                 'podem se fundir na binarização clássica.'
             )
 
-        if letters and self._calculate_overall_confidence(letters) < 0.75:
+        overall_conf = conf_breakdown.get('overall', 0.0) if conf_breakdown else self._calculate_overall_confidence(letters)
+        if letters and overall_conf < 0.75:
             warnings.append(
-                'A pontuação média de confiança é moderada. Recomendamos inspecionar os recortes na grade visual.'
+                f'A pontuação média de confiança é moderada ({overall_conf * 100:.1f}%). '
+                'Recomendamos inspecionar os recortes na grade visual para checar eventuais fragmentações.'
+            )
+        elif letters and conf_breakdown:
+            warnings.append(
+                f"Transparência de confiabilidade ({overall_conf * 100:.1f}%): "
+                f"{conf_breakdown.get('description', '')}"
             )
 
         warnings.append(

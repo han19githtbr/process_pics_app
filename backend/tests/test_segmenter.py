@@ -225,5 +225,50 @@ def test_segmenter_detects_real_text_image_without_frame_noise():
     assert not any(l.x <= 1 or l.y <= 1 for l in result.letters)
     # A confiança média deve ser alta
     assert result.metadata["confidence_score"] >= 0.90
+    assert "confidence_breakdown" in result.metadata
+    breakdown = result.metadata["confidence_breakdown"]
+    assert "aspect_ratio_score" in breakdown
+    assert "contrast_score" in breakdown
+    assert "line_coherence_score" in breakdown
+    assert "density_score" in breakdown
+    assert breakdown["overall"] >= 0.90
+
+
+def test_segmenter_confidence_breakdown_transparency():
+    image = _build_text_image("Transparência Total 100%")
+    result = ImprovedSegmenter(ProcessingOptions(min_letter_size=3)).segment(image)
+
+    assert len(result.letters) > 0
+    assert "confidence_breakdown" in result.metadata
+    breakdown = result.metadata["confidence_breakdown"]
+
+    # Verifica os 4 pilares
+    assert 0.0 <= breakdown["aspect_ratio_score"] <= 1.0
+    assert 0.0 <= breakdown["contrast_score"] <= 1.0
+    assert 0.0 <= breakdown["line_coherence_score"] <= 1.0
+    assert 0.0 <= breakdown["density_score"] <= 1.0
+    assert 0.0 <= breakdown["overall"] <= 1.0
+
+    # Ponderação matemática transparente: 0.35 + 0.30 + 0.20 + 0.15 = 1.0
+    expected_overall = round(
+        0.35 * breakdown["aspect_ratio_score"]
+        + 0.30 * breakdown["contrast_score"]
+        + 0.20 * breakdown["line_coherence_score"]
+        + 0.15 * breakdown["density_score"],
+        4,
+    )
+    assert abs(breakdown["overall"] - expected_overall) < 0.001
+    assert breakdown["evaluated_letters"] == len(result.letters)
+
+    # Verifica se cada letra individual possui detalhes dos 4 pilares
+    for letter in result.letters:
+        assert letter.confidence_details is not None
+        assert "aspect_ratio" in letter.confidence_details
+        assert "contrast" in letter.confidence_details
+        assert "line_coherence" in letter.confidence_details
+        assert "density" in letter.confidence_details
+        assert "overall" in letter.confidence_details
+        assert abs(letter.confidence - letter.confidence_details["overall"]) < 0.001
+
 
 

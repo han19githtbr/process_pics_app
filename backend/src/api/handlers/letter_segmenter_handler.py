@@ -24,6 +24,7 @@ class LetterSegmenterHandler:
                 'height': letter.height,
                 'area': letter.area,
                 'confidence': letter.confidence,
+                'confidenceDetails': getattr(letter, 'confidence_details', None),
                 'image': letter.image,
             }
             for i, letter in enumerate(result.letters)
@@ -111,14 +112,19 @@ class LetterSegmenterHandler:
             letters = self._serialize_letters(result)
             transcript = result.transcript or result.transcript_text
 
+            conf_breakdown = result.metadata.get('confidence_breakdown', {})
             meta = {
                 'width': result.metadata.get('width'),
                 'height': result.metadata.get('height'),
                 'totalLetters': result.metadata.get('total_letters'),
                 'processingTime': result.metadata.get('processing_time'),
                 'confidenceScore': result.metadata.get('confidence_score'),
+                'confidenceBreakdown': conf_breakdown,
                 'scale': result.metadata.get('scale'),
                 'edgePixels': result.metadata.get('edge_pixels'),
+                'splitsCount': result.metadata.get('splits_count', 0),
+                'filteredCount': result.metadata.get('filtered_count', 0),
+                'mode': result.metadata.get('mode', 'enhanced'),
                 'warnings': result.metadata.get('warnings', []),
                 'transcript': transcript,
             }
@@ -130,6 +136,7 @@ class LetterSegmenterHandler:
                 'meta': meta,
                 'transcript': transcript,
                 'confidence': result.confidence_score,
+                'confidenceBreakdown': conf_breakdown,
             }
 
             if self.mongodb_service.is_enabled:

@@ -21,6 +21,8 @@ class SegmentResult:
         """Pontuação média de confiança."""
         if not self.letters:
             return 0.0
+        if 'confidence_score' in self.metadata:
+            return float(self.metadata['confidence_score'])
         return sum(l.confidence for l in self.letters) / len(self.letters)
 
     @property

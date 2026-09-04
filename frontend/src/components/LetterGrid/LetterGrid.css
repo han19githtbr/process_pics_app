@@ -81,6 +81,26 @@
   font-weight: 600;
 }
 
+.confidence-pill.interactive-pill {
+  cursor: pointer;
+  transition: all var(--transition-fast, 0.2s ease);
+  user-select: none;
+}
+
+.confidence-pill.interactive-pill:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.1);
+}
+
+.confidence-pill.interactive-pill.active {
+  box-shadow: 0 0 0 2px var(--color-primary-soft, rgba(99, 102, 241, 0.4));
+}
+
+.pill-info-icon {
+  opacity: 0.75;
+  margin-left: 2px;
+}
+
 .confidence-pill.high {
   background: var(--status-success-soft);
   color: var(--status-success);
@@ -775,5 +795,188 @@
   .details-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Confidence Breakdown Card */
+.confidence-breakdown-card {
+  margin: 12px 0 16px 0;
+  padding: 16px;
+  background: var(--bg-surface, rgba(15, 23, 42, 0.8));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+  border-radius: var(--radius-lg, 12px);
+  backdrop-filter: blur(12px);
+  animation: fadeInDown 0.25s ease-out;
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.confidence-breakdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.breakdown-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--color-primary, #6366f1);
+}
+
+.breakdown-title-wrap h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary, #f8fafc);
+}
+
+.breakdown-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.breakdown-close-btn:hover {
+  color: var(--text-primary, #f8fafc);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.breakdown-intro {
+  margin: 0 0 14px 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary, #cbd5e1);
+  line-height: 1.5;
+}
+
+.breakdown-pillars-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.pillar-item {
+  background: var(--bg-card, rgba(30, 41, 59, 0.6));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));
+  border-radius: var(--radius-md, 8px);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pillar-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pillar-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+}
+
+.pillar-val {
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--color-primary, #6366f1);
+}
+
+.pillar-bar-bg {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.pillar-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #06b6d4);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.pillar-desc {
+  font-size: 0.7rem;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.35;
+}
+
+.breakdown-formula-strip {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px dashed var(--border-color, rgba(255, 255, 255, 0.12));
+  border-radius: 6px;
+  padding: 6px 12px;
+  text-align: center;
+}
+
+.breakdown-formula-strip code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: var(--text-secondary, #94a3b8);
+}
+
+/* Modal Pillars Breakdown */
+.modal-pillars-box {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.1));
+}
+
+.letter-pillars-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.letter-pillar-row {
+  background: var(--bg-card, rgba(30, 41, 59, 0.5));
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.letter-pillar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary, #cbd5e1);
+}
+
+.letter-pillar-head strong {
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--color-primary, #6366f1);
+}
+
+.pillar-subtext {
+  font-size: 0.68rem;
+  color: var(--text-muted, #94a3b8);
+  font-family: 'JetBrains Mono', monospace;
 }
 

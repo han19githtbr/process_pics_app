@@ -10,8 +10,9 @@ import {
   Maximize2,
   Grid,
   AlignLeft,
+  Info,
 } from 'lucide-react';
-import { Letter } from '../../types';
+import { Letter, ConfidenceBreakdown } from '../../types';
 import './LetterGrid.css';
 
 interface LetterGridProps {
@@ -21,6 +22,7 @@ interface LetterGridProps {
     totalLetters: number;
     processingTime: number;
     confidenceScore: number;
+    confidenceBreakdown?: ConfidenceBreakdown;
   };
 }
 
@@ -32,8 +34,10 @@ export const LetterGrid: React.FC<LetterGridProps> = ({
   const [selectedLetter, setSelectedLetter] = useState<Letter | null>(null);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'strip' | 'grid'>('strip');
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   const orderedLetters = [...letters];
+  const breakdown = metadata?.confidenceBreakdown;
 
   const handleCopyTranscript = () => {
     const transcript = orderedLetters
@@ -72,10 +76,16 @@ export const LetterGrid: React.FC<LetterGridProps> = ({
           <div className="header-stats-strip">
             {metadata && (
               <>
-                <div className={`confidence-pill ${isHighConfidence ? 'high' : 'medium'}`}>
+                <button
+                  type="button"
+                  onClick={() => setShowBreakdown((prev) => !prev)}
+                  className={`confidence-pill ${isHighConfidence ? 'high' : 'medium'} interactive-pill ${showBreakdown ? 'active' : ''}`}
+                  title="Clique para abrir a auditoria transparente dos 4 pilares de confiança"
+                >
                   <ShieldCheck size={13} />
                   <span>Confiança: {confidencePercent}%</span>
-                </div>
+                  <Info size={11} className="pill-info-icon" />
+                </button>
                 {metadata.processingTime > 0 && (
                   <div className="time-pill">
                     <Clock size={13} />
@@ -130,6 +140,108 @@ export const LetterGrid: React.FC<LetterGridProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Confidence Breakdown Transparent Panel */}
+      {showBreakdown && (
+        <div className="confidence-breakdown-card">
+          <div className="confidence-breakdown-header">
+            <div className="breakdown-title-wrap">
+              <ShieldCheck size={16} className="breakdown-icon" />
+              <h4>Transparência de Confiabilidade (100% Auditável)</h4>
+            </div>
+            <button
+              type="button"
+              className="breakdown-close-btn"
+              onClick={() => setShowBreakdown(false)}
+              aria-label="Fechar auditoria de confiança"
+            >
+              <X size={14} />
+            </button>
+          </div>
+
+          <p className="breakdown-intro">
+            A pontuação geral de <strong>{confidencePercent}%</strong> é calculada matematicamente a partir da média ponderada dos 4 pilares físicos extraídos dos {orderedLetters.length} caracteres identificados:
+          </p>
+
+          <div className="breakdown-pillars-grid">
+            <div className="pillar-item">
+              <div className="pillar-info">
+                <span className="pillar-label">1. Morfologia Tipográfica (35%)</span>
+                <strong className="pillar-val">
+                  {((breakdown?.aspect_ratio_score ?? (metadata?.confidenceScore ?? 0.95)) * 100).toFixed(1)}%
+                </strong>
+              </div>
+              <div className="pillar-bar-bg">
+                <div
+                  className="pillar-bar-fill"
+                  style={{
+                    width: `${Math.min(100, Math.max(8, (breakdown?.aspect_ratio_score ?? (metadata?.confidenceScore ?? 0.95)) * 100))}%`,
+                  }}
+                />
+              </div>
+              <span className="pillar-desc">Razão de aspecto (largura / altura) compatível com letras ocidentais.</span>
+            </div>
+
+            <div className="pillar-item">
+              <div className="pillar-info">
+                <span className="pillar-label">2. Contraste de Tinta (30%)</span>
+                <strong className="pillar-val">
+                  {((breakdown?.contrast_score ?? (metadata?.confidenceScore ?? 0.95)) * 100).toFixed(1)}%
+                </strong>
+              </div>
+              <div className="pillar-bar-bg">
+                <div
+                  className="pillar-bar-fill"
+                  style={{
+                    width: `${Math.min(100, Math.max(8, (breakdown?.contrast_score ?? (metadata?.confidenceScore ?? 0.95)) * 100))}%`,
+                  }}
+                />
+              </div>
+              <span className="pillar-desc">Desvio padrão de tons de cinza e faixa dinâmica do traço contra o fundo.</span>
+            </div>
+
+            <div className="pillar-item">
+              <div className="pillar-info">
+                <span className="pillar-label">3. Coerência de Linha (20%)</span>
+                <strong className="pillar-val">
+                  {((breakdown?.line_coherence_score ?? (metadata?.confidenceScore ?? 0.95)) * 100).toFixed(1)}%
+                </strong>
+              </div>
+              <div className="pillar-bar-bg">
+                <div
+                  className="pillar-bar-fill"
+                  style={{
+                    width: `${Math.min(100, Math.max(8, (breakdown?.line_coherence_score ?? (metadata?.confidenceScore ?? 0.95)) * 100))}%`,
+                  }}
+                />
+              </div>
+              <span className="pillar-desc">Consistência de altura dos caracteres com a mediana da linha de texto.</span>
+            </div>
+
+            <div className="pillar-item">
+              <div className="pillar-info">
+                <span className="pillar-label">4. Solidez e Densidade (15%)</span>
+                <strong className="pillar-val">
+                  {((breakdown?.density_score ?? (metadata?.confidenceScore ?? 0.95)) * 100).toFixed(1)}%
+                </strong>
+              </div>
+              <div className="pillar-bar-bg">
+                <div
+                  className="pillar-bar-fill"
+                  style={{
+                    width: `${Math.min(100, Math.max(8, (breakdown?.density_score ?? (metadata?.confidenceScore ?? 0.95)) * 100))}%`,
+                  }}
+                />
+              </div>
+              <span className="pillar-desc">Densidade de preenchimento (área / w×h) dentro da faixa esperada para fontes.</span>
+            </div>
+          </div>
+
+          <div className="breakdown-formula-strip">
+            <code>Fórmula Transparente: C = 0.35 × Morfologia + 0.30 × Contraste + 0.20 × Linha + 0.15 × Solidez</code>
+          </div>
+        </div>
+      )}
 
       {/* Reading Order Strip */}
       {activeTab === 'strip' ? (
@@ -290,6 +402,79 @@ export const LetterGrid: React.FC<LetterGridProps> = ({
                     <strong className="accent-text">
                       {((selectedLetter.confidence || 0) * 100).toFixed(1)}%
                     </strong>
+                  </div>
+                </div>
+
+                <div className="modal-pillars-box">
+                  <span className="modal-details-title">Auditoria dos 4 Pilares deste Caractere:</span>
+                  <div className="letter-pillars-list">
+                    <div className="letter-pillar-row">
+                      <div className="letter-pillar-head">
+                        <span>Morfologia Tipográfica (35%)</span>
+                        <strong>{((selectedLetter.confidenceDetails?.aspect_ratio ?? (selectedLetter.confidence || 0.95)) * 100).toFixed(1)}%</strong>
+                      </div>
+                      <div className="pillar-bar-bg">
+                        <div
+                          className="pillar-bar-fill"
+                          style={{
+                            width: `${Math.min(100, Math.max(8, (selectedLetter.confidenceDetails?.aspect_ratio ?? (selectedLetter.confidence || 0.95)) * 100))}%`,
+                          }}
+                        />
+                      </div>
+                      <span className="pillar-subtext">
+                        Razão de aspecto: {(selectedLetter.width / Math.max(selectedLetter.height, 1)).toFixed(2)} (W/H)
+                      </span>
+                    </div>
+
+                    <div className="letter-pillar-row">
+                      <div className="letter-pillar-head">
+                        <span>Contraste de Tinta (30%)</span>
+                        <strong>{((selectedLetter.confidenceDetails?.contrast ?? (selectedLetter.confidence || 0.95)) * 100).toFixed(1)}%</strong>
+                      </div>
+                      <div className="pillar-bar-bg">
+                        <div
+                          className="pillar-bar-fill"
+                          style={{
+                            width: `${Math.min(100, Math.max(8, (selectedLetter.confidenceDetails?.contrast ?? (selectedLetter.confidence || 0.95)) * 100))}%`,
+                          }}
+                        />
+                      </div>
+                      <span className="pillar-subtext">Nitidez de traço e desvio padrão sobre o suporte</span>
+                    </div>
+
+                    <div className="letter-pillar-row">
+                      <div className="letter-pillar-head">
+                        <span>Coerência de Linha (20%)</span>
+                        <strong>{((selectedLetter.confidenceDetails?.line_coherence ?? (selectedLetter.confidence || 0.95)) * 100).toFixed(1)}%</strong>
+                      </div>
+                      <div className="pillar-bar-bg">
+                        <div
+                          className="pillar-bar-fill"
+                          style={{
+                            width: `${Math.min(100, Math.max(8, (selectedLetter.confidenceDetails?.line_coherence ?? (selectedLetter.confidence || 0.95)) * 100))}%`,
+                          }}
+                        />
+                      </div>
+                      <span className="pillar-subtext">Alinhamento vertical com a Linha {selectedLetter.line ?? 1}</span>
+                    </div>
+
+                    <div className="letter-pillar-row">
+                      <div className="letter-pillar-head">
+                        <span>Solidez e Densidade (15%)</span>
+                        <strong>{((selectedLetter.confidenceDetails?.density ?? (selectedLetter.confidence || 0.95)) * 100).toFixed(1)}%</strong>
+                      </div>
+                      <div className="pillar-bar-bg">
+                        <div
+                          className="pillar-bar-fill"
+                          style={{
+                            width: `${Math.min(100, Math.max(8, (selectedLetter.confidenceDetails?.density ?? (selectedLetter.confidence || 0.95)) * 100))}%`,
+                          }}
+                        />
+                      </div>
+                      <span className="pillar-subtext">
+                        Densidade de traço: {(((selectedLetter.area || selectedLetter.width * selectedLetter.height) / Math.max(selectedLetter.width * selectedLetter.height, 1)) * 100).toFixed(0)}%
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

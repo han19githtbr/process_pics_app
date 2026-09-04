@@ -122,9 +122,8 @@ class OpenCVProcessor(IImageProcessor):
             thresh_type = cv2.THRESH_BINARY if dark_background else cv2.THRESH_BINARY_INV
             _, binary = cv2.threshold(smooth, 0, 255, thresh_type + cv2.THRESH_OTSU)
 
-        # Refinamento morfológico suave para consolidação dos traços das letras
+        # Refinamento morfológico suave para consolidação dos traços das letras (apenas fechamento para preservar hastes finas)
         kernel_m = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-        binary = cv2.morphologyEx(binary, cv2.MORPH_OPEN, kernel_m)
         binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel_m)
 
         if options.remove_noise:
@@ -143,7 +142,15 @@ class OpenCVProcessor(IImageProcessor):
         """Remove pequenos ruídos da imagem binária, preservando letras pequenas em textos densos."""
         height, width = binary.shape
         total_area = height * width
-        area_threshold = max(3, int(total_area * (0.00025 if sensitivity <= 0.5 else 0.00012)))
+        
+        # Limiar adaptativo seguro: não escala desproporcionalmente com a resolução da imagem,
+        # evitando apagar letras pequenas, acentos e caracteres finos em textos densos.
+        if sensitivity > 0.60:
+            area_threshold = 3
+        elif sensitivity >= 0.40:
+            area_threshold = max(3, min(8, int(total_area * 0.000015)))
+        else:
+            area_threshold = max(4, min(14, int(total_area * 0.00003)))
         
         num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary, 8)
         clean = np.zeros_like(binary)

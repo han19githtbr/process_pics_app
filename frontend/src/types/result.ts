@@ -9,6 +9,23 @@ export interface PipelineStep {
   image: string;
 }
 
+export interface ConfidenceBreakdown {
+  overall: number;
+  letter_average?: number;
+  aspect_ratio_score?: number;
+  contrast_score?: number;
+  line_coherence_score?: number;
+  density_score?: number;
+  weights?: {
+    aspect_ratio: number;
+    contrast: number;
+    line_coherence: number;
+    density: number;
+  };
+  evaluated_letters?: number;
+  description?: string;
+}
+
 export interface SegmentResult {
   letters: Letter[];
   debugImage?: string;
@@ -20,14 +37,18 @@ export interface SegmentResult {
     totalLetters: number;
     processingTime: number;
     confidenceScore: number;
+    confidenceBreakdown?: ConfidenceBreakdown;
     edgePixels?: number;
     splits_count?: number;
+    splitsCount?: number;
     filtered_count?: number;
+    filteredCount?: number;
     mode?: string;
     warnings?: string[];
     transcript?: string;
   };
   confidence?: number;
+  confidenceBreakdown?: ConfidenceBreakdown;
 }
 
 export interface HistoryEntry {

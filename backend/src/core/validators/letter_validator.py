@@ -17,9 +17,19 @@ class LetterValidator(ILetterValidator):
         # 1. Remover duplicatas
         unique = self._remove_duplicates(letter_boxes)
         
-        # 2. Recalcular confiança com dados de imagem bruta/contraste se disponível
+        # Calcular alturas medianas por linha para contextualização do alinhamento
+        by_line = {}
         for box in unique:
-            box.confidence = self.calculate_confidence(box, image, raw_image)
+            by_line.setdefault(box.line or 1, []).append(box.height)
+        line_medians = {lid: float(np.median(hs)) for lid, hs in by_line.items()}
+
+        # 2. Recalcular confiança com dados de imagem bruta/contraste e contexto de linha
+        for box in unique:
+            details = self.calculate_confidence_details(
+                box, image, raw_image, line_med_h=line_medians.get(box.line or 1)
+            )
+            box.confidence = details['overall']
+            box.confidence_details = details
 
         # 3. Filtrar por confiança mínima
         filtered = [box for box in unique if box.confidence >= self.MIN_CONFIDENCE]
@@ -29,27 +39,34 @@ class LetterValidator(ILetterValidator):
         
         return coherent
     
-    def calculate_confidence(self, letter_box: LetterBox, image: np.ndarray,
-                             raw_image: Optional[np.ndarray] = None) -> float:
-        """Calcula confiança de que um componente é uma letra, avaliando morfologia e contraste de tinta."""
-        confidence = 1.0
-        
-        # Proporção largura / altura (aspect ratio)
+    def calculate_confidence_details(self, letter_box: LetterBox, image: np.ndarray,
+                                     raw_image: Optional[np.ndarray] = None,
+                                     line_med_h: Optional[float] = None) -> dict:
+        """
+        Calcula a pontuação detalhada e 100% transparente dos 4 pilares de confiança:
+        morfologia tipográfica, contraste de tinta, solidez e coerência de linha.
+        """
+        # 1. Avaliação morfológica de aspecto (largura / altura)
         ar = letter_box.aspect_ratio
-        if ar < 0.05 or ar > 3.5:
-            return 0.1
-        elif ar < 0.12 or ar > 2.0:
-            confidence *= 0.8
-        
-        # Área relativa à imagem
-        total_area = image.shape[0] * image.shape[1]
-        area_ratio = letter_box.area / max(total_area, 1)
-        if area_ratio < 0.0001:
-            confidence *= 0.8
-        if area_ratio > 0.15:
-            return 0.1
-            
-        # Inspeção de contraste e desvio padrão no recorte (evita recortes de fundo liso)
+        if 0.28 <= ar <= 0.95:
+            ar_score = 1.0
+        elif 0.18 <= ar < 0.28 or 0.95 < ar <= 1.45:
+            ar_score = 0.93
+        elif 0.10 <= ar < 0.18 or 1.45 < ar <= 1.85:
+            ar_score = 0.85
+        elif ar < 0.05 or ar > 3.5:
+            return {
+                'aspect_ratio': 0.10,
+                'contrast': 0.10,
+                'line_coherence': 0.10,
+                'density': 0.10,
+                'overall': 0.10,
+            }
+        else:
+            ar_score = 0.72
+
+        # 2. Avaliação de contraste e desvio padrão de tinta no suporte
+        contrast_score = 0.95
         eval_img = raw_image if raw_image is not None else image
         if eval_img is not None and eval_img.size > 0:
             h_img, w_img = eval_img.shape[:2]
@@ -65,13 +82,24 @@ class LetterValidator(ILetterValidator):
             if crop.size > 0:
                 std_val = float(np.std(crop))
                 dyn_range = float(np.max(crop) - np.min(crop))
-                # Se for fundo homogêneo (sem tinta / sem letra)
                 if std_val < 14.0 or dyn_range < 30.0:
-                    return 0.1
-                elif std_val < 22.0:
-                    confidence *= 0.85
-                    
-        # Teste de moldura vazada (se a imagem binária estiver disponível)
+                    return {
+                        'aspect_ratio': round(ar_score, 4),
+                        'contrast': 0.10,
+                        'line_coherence': 0.10,
+                        'density': 0.10,
+                        'overall': 0.10,
+                    }
+                elif std_val >= 45.0 and dyn_range >= 140.0:
+                    contrast_score = 1.0
+                elif std_val >= 30.0 and dyn_range >= 90.0:
+                    contrast_score = 0.92
+                elif std_val >= 20.0:
+                    contrast_score = 0.82
+                else:
+                    contrast_score = 0.70
+
+        # 3. Teste de moldura vazada (se for retângulo grande vazio no centro)
         if image is not None and image.ndim == 2 and letter_box.width >= 25 and letter_box.height >= 25:
             h_bin, w_bin = image.shape[:2]
             x0 = max(0, letter_box.x)
@@ -84,9 +112,53 @@ class LetterValidator(ILetterValidator):
                 mid = crop_bin[int(cy * 0.25):int(cy * 0.75), int(cx * 0.25):int(cx * 0.75)]
                 central_fill = float(np.mean(mid > 0)) if mid.size > 0 else 0
                 if central_fill < 0.03 and (letter_box.width > 35 or letter_box.height > 35):
-                    return 0.1
-        
-        return min(1.0, max(0.0, confidence))
+                    return {
+                        'aspect_ratio': round(ar_score, 4),
+                        'contrast': round(contrast_score, 4),
+                        'line_coherence': 0.10,
+                        'density': 0.10,
+                        'overall': 0.10,
+                    }
+
+        # 4. Coerência tipográfica de linha
+        line_score = 0.95
+        if line_med_h and line_med_h > 0:
+            ratio = letter_box.height / max(line_med_h, 1.0)
+            if 0.75 <= ratio <= 1.35:
+                line_score = 1.0
+            elif 0.50 <= ratio < 0.75 or 1.35 < ratio <= 1.80:
+                line_score = 0.92
+            elif 0.28 <= ratio < 0.50:
+                line_score = 0.82
+            else:
+                line_score = 0.65
+
+        # 5. Densidade de preenchimento (solidez)
+        bbox_area = max(letter_box.width * letter_box.height, 1)
+        density = letter_box.area / bbox_area if letter_box.area else 0.4
+        if 0.15 <= density <= 0.75:
+            dens_score = 1.0
+        elif 0.10 <= density < 0.15 or 0.75 < density <= 0.92:
+            dens_score = 0.90
+        else:
+            dens_score = 0.72
+
+        confidence = 0.35 * ar_score + 0.30 * contrast_score + 0.20 * line_score + 0.15 * dens_score
+        overall = round(float(min(1.0, max(0.1, confidence))), 4)
+
+        return {
+            'aspect_ratio': round(ar_score, 4),
+            'contrast': round(contrast_score, 4),
+            'line_coherence': round(line_score, 4),
+            'density': round(dens_score, 4),
+            'overall': overall,
+        }
+
+    def calculate_confidence(self, letter_box: LetterBox, image: np.ndarray,
+                             raw_image: Optional[np.ndarray] = None,
+                             line_med_h: Optional[float] = None) -> float:
+        """Calcula a pontuação de confiança de que o componente é uma letra."""
+        return self.calculate_confidence_details(letter_box, image, raw_image, line_med_h)['overall']
     
     def is_letter(self, letter_box: LetterBox, image: np.ndarray) -> bool:
         """Verifica se um componente é uma letra."""
@@ -111,11 +183,11 @@ class LetterValidator(ILetterValidator):
             if len(line_boxes) >= 3:
                 med_height = float(np.median([b.height for b in line_boxes]))
                 for b in line_boxes:
-                    if 0.40 * med_height <= b.height <= 2.0 * med_height:
+                    if 0.28 * med_height <= b.height <= 2.2 * med_height:
                         validated.append(b)
             else:
                 for b in line_boxes:
-                    if b.height >= 0.50 * global_med_h and b.confidence >= 0.60:
+                    if b.height >= 0.35 * global_med_h and b.confidence >= 0.50:
                         validated.append(b)
                 
         return validated
