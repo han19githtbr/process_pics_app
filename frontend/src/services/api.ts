@@ -26,6 +26,10 @@ export const checkSession = async (): Promise<boolean> => {
   return response.data?.authenticated === true;
 };
 
+export const logout = async (): Promise<void> => {
+  await apiClient.post('/auth/logout');
+};
+
 export const segmentImage = async (
   image: string,
   options?: ProcessingOptions,

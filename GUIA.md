@@ -167,6 +167,7 @@ $$C = 0.35 \cdot S_{\text{morf}} + 0.30 \cdot S_{\text{contraste}} + 0.20 \cdot 
 - **Exportação em ZIP:** download de todas as letras segmentadas e da transcrição textual.
 - **Preservação de fontes preenchidas e contornadas:** o filtro diferencia letras com centro vazio (`C`, `D`, `K`, `O`, `U`) de cantos/molduras geométricos, evitando descartar glifos estreitos ou outline.
 - **Textos pequenos e densos:** a limpeza de ruído mantém componentes pequenos e o agrupamento por linhas usa tolerância proporcional à altura, preservando letras em parágrafos com múltiplas linhas.
+- **Logout do Painel Administrativo:** botão dedicado (`Sair`, ícone `LogOut`) no cabeçalho do dashboard, ao lado do alternador de tema. Encerra a sessão administrativa chamando `POST /api/auth/logout` (que expira o cookie `HttpOnly` no backend) e redireciona imediatamente para a tela de `Login`, sem exigir reload manual da página. Uma confirmação (`window.confirm`) evita encerramentos acidentais, e o botão fica desabilitado com o rótulo "Saindo..." durante a requisição.
 - **Progressive Web App (PWA):** manifesto instalável, ícones do Pattern Checker e service worker registrado apenas no build de produção. O shell do frontend pode abrir com recursos estáticos em cache quando estiver sem conexão; chamadas à API, login, histórico e processamento continuam dependendo do backend.
 
 ## 5. Design System, Arquitetura Visual e Responsividade
@@ -286,6 +287,8 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
 Copie os resultados para `AUTH_PASSWORD_HASH` e `AUTH_SECRET_KEY` no arquivo `backend/.env`, e configure `AUTH_EMAIL` com o e-mail administrativo. O arquivo `.env` é ignorado pelo Git. Em produção, defina `AUTH_COOKIE_SECURE=true` e `AUTH_COOKIE_SAMESITE=none`: como Vercel e Render usam domínios diferentes, o navegador exige cookie `Secure` e `SameSite=None` para manter a sessão. O backend também força `Secure` quando `SameSite=None`, evitando a combinação inválida exibida pelo Chrome no Android. Após o login, o frontend confirma `/api/auth/session` antes de abrir o dashboard. As rotas de segmentação, comparação e histórico exigem essa sessão; `/health` permanece público para monitoramento.
+
+Para sair, o botão **Sair** no cabeçalho do dashboard chama `POST /api/auth/logout`, que remove o cookie `HttpOnly` no backend; o frontend então limpa o estado de autenticação local e volta para a tela de `Login` automaticamente. O mesmo fluxo de "sessão expirada" (evento `auth-expired`, disparado quando qualquer chamada à API retorna `401`) também redireciona o usuário para o login, garantindo que o dashboard nunca fique acessível sem uma sessão válida.
 
 Para produção, use uma coleção separada:
 
@@ -458,7 +461,7 @@ Todas as rotas abaixo (exceto `/health` na raiz) ficam sob o prefixo `/api`.
 | DELETE | `/api/history/{item_id}` | Exclui permanentemente um item e todas as suas letras do banco de dados |
 | DELETE | `/api/history`           | Limpa permanentemente todo o histórico de processamentos no banco de dados |
 | POST   | `/api/auth/login`       | Valida o e-mail e a senha administrativa e cria sessão HttpOnly |
-| POST   | `/api/auth/logout`      | Encerra a sessão administrativa |
+| POST   | `/api/auth/logout`      | Encerra a sessão administrativa (consumida pelo botão **Sair** no cabeçalho do dashboard) |
 | GET    | `/api/auth/session`     | Verifica se existe uma sessão válida |
 | OPTIONS| `/api/segment`, `/api/compare`, `/api/history`, `/api/history/{item_id}` | Respostas de CORS (preflight) |
 | GET    | `/api/health`            | Health check da API                                                     |
@@ -684,6 +687,27 @@ Embora o projeto tenha nascido como exercício acadêmico da disciplina TM438, o
 - **Gerenciamento e Limpeza do Banco de Dados:** Exclua registros antigos individualmente clicando no ícone de lixeira do card ou limpe todo o acervo clicando em "Limpar Histórico" no cabeçalho; ambas as ações expurgam as imagens e os recortes salvos definitivamente do MongoDB Atlas;
 - **Ajuste Fino de Sensibilidade:** Em imagens com texto de baixo contraste ou fundo ruidoso, ajuste a sensibilidade e ative as opções *Remover ruídos* e *Melhorar contraste*.
 
+## 24. Transparência dos Resultados: Recorte de Letras e Imperfeições Conhecidas
+
+Esta seção consolida, num único lugar, onde e como a aplicação expõe a qualidade real de cada processamento — tanto no produto quanto neste guia — para que o resultado nunca seja tratado como caixa-preta.
+
+### 24.1. Onde a análise aparece dentro da aplicação
+
+- **Aviso de Qualidade (`quality-notice`), logo acima da grade de letras:** a cada segmentação, o backend gera dinamicamente uma lista de avisos (`meta.warnings`) sobre o que aconteceu naquela imagem específica — não é um texto genérico fixo. Os avisos incluem, por exemplo: quantos grupos de caracteres colados foram desmembrados (`splits_count`), quantos elementos não-textuais (linhas, molduras, ruído) foram descartados (`filtered_count`), se algum recorte ficou com proporção larga (possível fusão por kerning apertado) e a pontuação média de confiança do lote quando ela é apenas moderada (abaixo de 75%).
+- **Pílula de Confiança expansível, no cabeçalho da grade de letras:** mostra o percentual geral e, ao clicar, abre a decomposição dos 4 pilares que compõem a nota — Morfologia (35%), Contraste (30%), Coerência de Linha (20%) e Solidez (15%) — com barra de progresso e descrição de cada um.
+- **Inspetor Geométrico (modal por letra):** ao clicar em qualquer recorte individual, o inspetor mostra coordenadas $(x,y)$, dimensões $(w,h)$, área em $px^2$, linha detectada e a mesma auditoria dos 4 pilares calculada especificamente para aquele caractere — permitindo identificar visualmente qual recorte específico está com confiança baixa e por quê.
+- **Aba "Fundamentação & Limitações" do Pipeline Viewer:** explica, com fórmulas e comandos do OpenCV, as causas físicas e matemáticas das imperfeições mais comuns do método clássico (kerning estreito colando letras, sombras e variação de iluminação, fragmentação de acentos e diacríticos) e cita textualmente a conclusão honesta do trabalho acadêmico original.
+
+### 24.2. Imperfeições conhecidas do método (o que a aplicação assume abertamente)
+
+- O pipeline é baseado em visão computacional clássica (binarização + contornos), **não em OCR com aprendizado profundo**; por isso ele segmenta e recorta caracteres, mas não "lê" o alfabeto com certeza absoluta — a confiança exibida é uma estimativa geométrica, não uma probabilidade de reconhecimento textual.
+- Fontes com kerning muito apertado, cursivas ou manuscritas podem, em casos extremos, ainda produzir um recorte fundido de duas letras, mesmo com o desmembramento inteligente ativo.
+- Imagens com iluminação muito irregular, baixo contraste ou fundos ricos em textura podem gerar recortes espúrios ou descartar traços finos, apesar dos filtros de validação de conteúdo e supressão de sombra.
+- Conforme documentado no trabalho acadêmico de origem (UFRRJ, TM438), o método é mais eficiente em palavras/letras maiores; textos muito pequenos ou de baixa resolução tendem a reduzir a confiança média do lote.
+
+### 24.3. Por que isso é exibido dessa forma
+
+A confiabilidade é comunicada em camadas — resumo (pílula), detalhamento (painel de pilares), auditoria por item (inspetor) e fundamentação teórica (aba de limitações) — para que tanto um uso rápido quanto uma auditoria detalhada tenham a informação necessária, sem esconder limitações reais atrás de uma interface apenas esteticamente polida.
 
 ## Alguns comandos úteis
 

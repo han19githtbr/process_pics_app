@@ -19,6 +19,7 @@ import {
   ArrowRight,
   Clock,
   Trash2,
+  LogOut,
 } from 'lucide-react';
 import { useSegmenter } from '../../hooks/useSegmenter';
 import { useImageUpload } from '../../hooks/useImageUpload';
@@ -40,9 +41,14 @@ import {
 } from '../../services/api';
 import './Segmenter.css';
 
-export const Segmenter: React.FC = () => {
+type SegmenterProps = {
+  onLogout?: () => void;
+};
+
+export const Segmenter: React.FC<SegmenterProps> = ({ onLogout }) => {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [showMobileControls, setShowMobileControls] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const sourceUpload = useImageUpload();
   const comparisonUpload = useImageUpload();
   const { loading, error: segmentError, result, segment, reset } = useSegmenter();
@@ -334,6 +340,18 @@ export const Segmenter: React.FC = () => {
     URL.revokeObjectURL(url);
   };
 
+  const handleLogout = async () => {
+    if (!onLogout || loggingOut) return;
+    if (!window.confirm('Deseja encerrar a sessão e voltar para a tela de login?')) return;
+
+    setLoggingOut(true);
+    try {
+      await onLogout();
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
   const error = sourceUpload.error || comparisonUpload.error || segmentError;
 
   return (
@@ -380,6 +398,20 @@ export const Segmenter: React.FC = () => {
               {theme === 'dark' ? <Moon size={16} /> : <Sun size={16} />}
               <span className="theme-label">{theme === 'dark' ? 'Escuro' : 'Claro'}</span>
             </button>
+
+            {onLogout && (
+              <button
+                type="button"
+                className="logout-btn"
+                onClick={() => void handleLogout()}
+                disabled={loggingOut}
+                aria-label="Sair da conta"
+                title="Encerrar sessão e voltar para a tela de login"
+              >
+                <LogOut size={16} />
+                <span className="logout-label">{loggingOut ? 'Saindo...' : 'Sair'}</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
