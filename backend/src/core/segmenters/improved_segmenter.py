@@ -580,7 +580,30 @@ class ImprovedSegmenter(ILetterSegmenter):
                         cy, cx = crop_bin.shape
                         mid = crop_bin[int(cy * 0.25):int(cy * 0.75), int(cx * 0.25):int(cx * 0.75)]
                         c_fill = float(np.mean(mid > 0)) if mid.size > 0 else 0
-                        if c_fill < 0.04 and (w > 35 or h > 35):
+                        edge_width = max(2, int(min(cx, cy) * 0.16))
+                        top_fill = float(np.mean(crop_bin[:edge_width, :] > 0))
+                        bottom_fill = float(np.mean(crop_bin[-edge_width:, :] > 0))
+                        left_fill = float(np.mean(crop_bin[:, :edge_width] > 0))
+                        right_fill = float(np.mean(crop_bin[:, -edge_width:] > 0))
+                        side_fills = [top_fill, right_fill, bottom_fill, left_fill]
+                        strong_sides = sum(fill > 0.35 for fill in side_fills)
+                        weak_sides = sum(fill < 0.12 for fill in side_fills)
+                        # Um canto L tem exatamente dois lados adjacentes fortes e
+                        # os outros dois vazios. Letras contornadas ocupam três lados
+                        # ou possuem traços diagonais/interiores.
+                        has_adjacent_corner = any(
+                            side_fills[i] > 0.35 and side_fills[(i + 1) % 4] > 0.35
+                            for i in range(4)
+                        )
+                        if (
+                            c_fill < 0.04
+                            and density < 0.20
+                            and strong_sides == 2
+                            and weak_sides == 2
+                            and has_adjacent_corner
+                            and 0.8 <= aspect_ratio <= 1.25
+                            and (w > 35 or h > 35)
+                        ):
                             continue
 
             # 8. Filtro avançado contra ruídos de fundos coloridos, desenhos e artefatos de papel

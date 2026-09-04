@@ -111,7 +111,30 @@ class LetterValidator(ILetterValidator):
                 cy, cx = crop_bin.shape
                 mid = crop_bin[int(cy * 0.25):int(cy * 0.75), int(cx * 0.25):int(cx * 0.75)]
                 central_fill = float(np.mean(mid > 0)) if mid.size > 0 else 0
-                if central_fill < 0.03 and (letter_box.width > 35 or letter_box.height > 35):
+                bbox_area = max(letter_box.width * letter_box.height, 1)
+                density = float(np.count_nonzero(crop_bin)) / bbox_area
+                edge_width = max(2, int(min(cx, cy) * 0.16))
+                side_fills = [
+                    float(np.mean(crop_bin[:edge_width, :] > 0)),
+                    float(np.mean(crop_bin[:, -edge_width:] > 0)),
+                    float(np.mean(crop_bin[-edge_width:, :] > 0)),
+                    float(np.mean(crop_bin[:, :edge_width] > 0)),
+                ]
+                strong_sides = sum(fill > 0.35 for fill in side_fills)
+                weak_sides = sum(fill < 0.12 for fill in side_fills)
+                has_adjacent_corner = any(
+                    side_fills[i] > 0.35 and side_fills[(i + 1) % 4] > 0.35
+                    for i in range(4)
+                )
+                if (
+                    central_fill < 0.03
+                    and density < 0.20
+                    and strong_sides == 2
+                    and weak_sides == 2
+                    and has_adjacent_corner
+                    and 0.8 <= letter_box.aspect_ratio <= 1.25
+                    and (letter_box.width > 35 or letter_box.height > 35)
+                ):
                     return {
                         'aspect_ratio': round(ar_score, 4),
                         'contrast': round(contrast_score, 4),

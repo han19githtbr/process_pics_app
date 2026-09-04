@@ -165,6 +165,8 @@ $$C = 0.35 \cdot S_{\text{morf}} + 0.30 \cdot S_{\text{contraste}} + 0.20 \cdot 
   * **Contador de Registros:** indicador visual com a contagem exata de imagens salvas;
   * **Busca com Debounce, Contador e Realce:** pesquisa por nome do arquivo ou transcrição com marcação visual dos termos encontrados e totalização de resultados.
 - **Exportação em ZIP:** download de todas as letras segmentadas e da transcrição textual.
+- **Preservação de fontes preenchidas e contornadas:** o filtro diferencia letras com centro vazio (`C`, `D`, `K`, `O`, `U`) de cantos/molduras geométricos, evitando descartar glifos estreitos ou outline.
+- **Textos pequenos e densos:** a limpeza de ruído mantém componentes pequenos e o agrupamento por linhas usa tolerância proporcional à altura, preservando letras em parágrafos com múltiplas linhas.
 - **Progressive Web App (PWA):** manifesto instalável, ícones do Pattern Checker e service worker registrado apenas no build de produção. O shell do frontend pode abrir com recursos estáticos em cache quando estiver sem conexão; chamadas à API, login, histórico e processamento continuam dependendo do backend.
 
 ## 5. Design System, Arquitetura Visual e Responsividade

@@ -177,6 +177,21 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
           </div>
 
           <div className="transparency-grid">
+            <div className="transparency-card transparency-expectations-card">
+              <div className="transparency-card-icon-box">
+                <ShieldCheck size={20} />
+              </div>
+              <h4>Resultados esperados por tipo de imagem</h4>
+              <p>A precisão depende da informação física disponível nos pixels. Esta tabela explica o comportamento esperado sem prometer uma acurácia universal.</p>
+              <div className="image-expectations">
+                <div className="expectation-row expectation-good"><strong>Texto grande e nítido</strong><span>Melhor cenário: caixas bem separadas e alta confiança.</span></div>
+                <div className="expectation-row expectation-good"><strong>Fonte negrito ou contornada</strong><span>Glifos como C, K, O e U são preservados; molduras ainda podem exigir revisão.</span></div>
+                <div className="expectation-row expectation-review"><strong>Texto pequeno e denso</strong><span>Componentes pequenos são preservados, mas traços de 1 px podem desaparecer ou letras próximas se unir.</span></div>
+                <div className="expectation-row expectation-review"><strong>Baixo contraste, sombra ou reflexo</strong><span>Otsu pode separar tinta e fundo incorretamente; confira o resultado visual.</span></div>
+                <div className="expectation-row expectation-review"><strong>Manuscrito cursivo ou ligaduras</strong><span>Traços contínuos não oferecem vales confiáveis para dividir todas as letras.</span></div>
+                <div className="expectation-row expectation-limited"><strong>Desenhos, molduras e fundo complexo</strong><span>Filtros removem muitos artefatos, mas elementos parecidos com tinta podem sobreviver ou ser descartados.</span></div>
+              </div>
+            </div>
             <div className="transparency-card">
               <div className="transparency-card-icon-box">
                 <Split size={20} />
@@ -217,7 +232,7 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
                 Se uma foto apresentar iluminação desigual (por exemplo, sombra de celular ou reflexo de flash), o limiar global pode binarizar incorretamente partes da imagem, gerando ruído de sal-e-pimenta.
               </p>
               <div className="transparency-solution">
-                <strong>Mitigação:</strong> Utilização do <em>Filtro Bilateral</em> ($d=10, \sigma=75$) conforme recomendado no trabalho para suavizar gradientes preservando bordas vivas, além de equalização adaptativa (CLAHE).
+                <strong>Mitigação:</strong> Utilização do <em>Filtro Bilateral</em> ($d=10, \sigma=75$) conforme recomendado no trabalho para suavizar gradientes preservando bordas vivas, além da normalização morfológica TopHat/BlackHat no modo aprimorado.
               </div>
             </div>
 

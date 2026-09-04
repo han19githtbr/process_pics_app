@@ -260,6 +260,19 @@
   font-weight: 600;
 }
 
+.transparency-expectations-card { grid-column: 1 / -1; }
+.image-expectations { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.expectation-row { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-left: 3px solid var(--border-color); background: var(--bg-panel-solid); border-radius: var(--radius-xs); }
+.expectation-row strong { color: var(--heading-color); font-size: 0.8rem; }
+.expectation-row span { color: var(--text-muted); font-size: 0.76rem; line-height: 1.45; }
+.expectation-good { border-left-color: var(--status-success); }
+.expectation-review { border-left-color: var(--status-warning); }
+.expectation-limited { border-left-color: var(--status-danger); }
+
+@media (max-width: 680px) {
+  .image-expectations { grid-template-columns: 1fr; }
+}
+
 .step-visual-body {
   display: grid;
   grid-template-columns: 1fr 1fr;

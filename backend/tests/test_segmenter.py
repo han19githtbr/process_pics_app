@@ -31,6 +31,39 @@ def test_segmenter_detects_letters_from_text():
     assert all(letter.width > 0 and letter.height > 0 for letter in result.letters)
 
 
+def test_segmenter_preserves_bold_and_outline_alphabets():
+    rows = ['ABCDEFG', 'HIJKLMN', 'OPQRSTU', 'VWXYZ']
+
+    for thickness in (10, 2):
+        image = np.full((520, 760, 3), 255, dtype=np.uint8)
+        for row, y in enumerate((95, 205, 315, 425)):
+            cv2.putText(
+                image, rows[row], (18, y), cv2.FONT_HERSHEY_SIMPLEX,
+                2.8, (0, 0, 0), thickness, cv2.LINE_AA,
+            )
+
+        result = ImprovedSegmenter(
+            ProcessingOptions(min_letter_size=3, max_image_size=1800)
+        ).segment(image)
+
+        assert len(result.letters) >= 26
+
+
+def test_segmenter_preserves_small_letters_across_dense_lines():
+    image = np.full((900, 1200, 3), 255, dtype=np.uint8)
+    for row, y in enumerate(range(70, 850, 55)):
+        cv2.putText(
+            image, f'linha pequena {row} abcdefghijklmnopqrstuvwxyz',
+            (24, y), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 1, cv2.LINE_AA,
+        )
+
+    result = ImprovedSegmenter(
+        ProcessingOptions(min_letter_size=2, max_image_size=1800)
+    ).segment(image)
+
+    assert len(result.letters) >= 200
+
+
 def test_segmenter_groups_letters_by_word_order():
     segmenter = ImprovedSegmenter(ProcessingOptions())
     letters = [
