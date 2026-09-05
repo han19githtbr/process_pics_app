@@ -26,6 +26,13 @@ interface ImageUploaderProps {
    * o usuário precise clicar manualmente na aba.
    */
   focusDebugSignal?: number;
+  /**
+   * true enquanto o preview ao vivo está sendo recalculado no backend após
+   * um ajuste de parâmetro. Exibe um indicador "Atualizando…" sobre a
+   * imagem de debug, para deixar claro que o efeito já está a caminho (e
+   * não que nada está acontecendo até clicar em "Segmentar Imagem").
+   */
+  previewLoading?: boolean;
 }
 
 export const ImageUploader: React.FC<ImageUploaderProps> = ({
@@ -36,6 +43,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
   onReset,
   fileName,
   focusDebugSignal,
+  previewLoading,
 }) => {
   const inputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -273,6 +281,16 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
               />
             )}
 
+            {/* Indicador ao vivo: aparece assim que um parâmetro muda, para deixar
+                claro que o efeito já está sendo recalculado (evita a impressão de
+                que "nada muda" enquanto se aguarda o resultado chegar do backend). */}
+            {activeView === 'debug' && previewLoading && (
+              <div className="live-preview-updating-badge" role="status" aria-live="polite">
+                <span className="live-preview-spinner" aria-hidden="true" />
+                <span>Atualizando pré-visualização…</span>
+              </div>
+            )}
+
             {debugImage && (
               <button
                 type="button"
@@ -318,4 +336,3 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
     </div>
   );
 };
-

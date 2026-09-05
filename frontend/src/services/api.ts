@@ -33,11 +33,12 @@ export const logout = async (): Promise<void> => {
 export const segmentImage = async (
   image: string,
   options?: ProcessingOptions,
-  fileName?: string
+  fileName?: string,
+  preview?: boolean
 ): Promise<SegmentResult> => {
   const response = await apiClient.post(
     '/segment',
-    { image, fileName, options: options || {} },
+    { image, fileName, options: options || {}, preview: !!preview },
     {
       headers: {
         'Content-Type': 'application/json',
@@ -108,3 +109,4 @@ export const clearProcessingHistory = async (): Promise<boolean> => {
   const response = await apiClient.delete('/history');
   return response.status === 200;
 };
+

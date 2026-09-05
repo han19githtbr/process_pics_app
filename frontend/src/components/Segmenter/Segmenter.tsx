@@ -91,6 +91,20 @@ export const Segmenter: React.FC<SegmenterProps> = ({ onLogout }) => {
     ? selectedHistoryResult.letters?.length ?? 0
     : livePreview.preview?.letters?.length ?? result?.letters?.length ?? 0;
 
+  // Resultado que será efetivamente salvo ao clicar em "Salvar". Antes da
+  // pré-visualização ao vivo (seção 25.2), o único jeito de ter um
+  // `displayedResult` era clicando em "Segmentar Imagem" — então "Salvar"
+  // e o auto-save embutido em handle_segment sempre coincidiam. Agora que a
+  // pré-visualização mostra o efeito ao vivo sem precisar clicar em
+  // "Segmentar Imagem", o usuário pode nunca chegar a gerar um `result`
+  // formal — e "Salvar" ficava desabilitado/sem efeito, deixando o
+  // histórico sempre vazio. Por isso, na ausência de um resultado do botão
+  // "Segmentar Imagem" (ou de um item do histórico selecionado), caímos de
+  // volta para o último preview ao vivo calculado, permitindo salvar
+  // exatamente o que está sendo visto na tela sem precisar clicar em
+  // "Segmentar Imagem" primeiro.
+  const saveableResult = displayedResult ?? livePreview.preview;
+
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
@@ -221,17 +235,17 @@ export const Segmenter: React.FC<SegmenterProps> = ({ onLogout }) => {
   };
 
   const handleSaveHistory = async () => {
-    if (!displayedResult) return;
+    if (!saveableResult) return;
 
     setSaveLoading(true);
     setSaveError(null);
     try {
       const payload = {
-        imageData: displayedResult.debugImage ?? sourceUpload.image ?? '',
+        imageData: saveableResult.debugImage ?? sourceUpload.image ?? '',
         sourceName: sourceUpload.file?.name ?? 'imagem-processada.png',
-        transcript: displayedResult.transcript ?? '',
-        letters: displayedResult.letters ?? [],
-        metadata: displayedResult.meta ?? {},
+        transcript: saveableResult.transcript ?? '',
+        letters: saveableResult.letters ?? [],
+        metadata: saveableResult.meta ?? {},
       };
 
       await saveProcessingResult(payload);
@@ -446,7 +460,7 @@ export const Segmenter: React.FC<SegmenterProps> = ({ onLogout }) => {
             loading={loading || compareLoading}
             saveLoading={saveLoading}
             hasImage={!!sourceUpload.image}
-            hasResult={!!displayedResult?.letters?.length}
+            hasResult={!!saveableResult?.letters?.length}
             previewImage={previewDebugImage}
             previewLoading={livePreview.loading}
           />
@@ -474,6 +488,7 @@ export const Segmenter: React.FC<SegmenterProps> = ({ onLogout }) => {
                 onReset={handleSourceReset}
                 fileName={sourceUpload.file?.name}
                 focusDebugSignal={previewSignal}
+                previewLoading={!selectedHistoryResult && livePreview.loading}
               />
             </div>
 

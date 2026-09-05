@@ -99,12 +99,21 @@ class LetterSegmenterHandler:
             return {'error': 'Falha ao limpar histórico.', 'detail': str(e)}, 500
 
     def handle_segment(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        """Processa requisição de segmentação."""
+        """Processa requisição de segmentação.
+
+        Quando `preview=True` (usado pela pré-visualização ao vivo enquanto o
+        usuário ajusta Sensibilidade, Margem do recorte, etc.), o resultado
+        NUNCA é gravado no histórico/MongoDB — apenas o clique explícito em
+        "Segmentar Imagem" (preview ausente/false) persiste no banco. Sem essa
+        distinção, cada ajuste de slider (a cada ~450ms) geraria um registro
+        de histórico, poluindo o banco e deixando a pré-visualização lenta.
+        """
         try:
             image_data = data.get('image')
             if not image_data:
                 return {'error': 'Envie uma imagem para processamento.'}, 400
 
+            is_preview = bool(data.get('preview'))
             image = ImageUtils.decode_data_url(image_data)
             options_data = data.get('options', {})
             options = ProcessingOptions.from_dict(options_data)
@@ -139,7 +148,7 @@ class LetterSegmenterHandler:
                 'confidenceBreakdown': conf_breakdown,
             }
 
-            if self.mongodb_service.is_enabled:
+            if self.mongodb_service.is_enabled and not is_preview:
                 file_name = (data.get('fileName') or data.get('name') or 'imagem-processada.png').strip() or 'imagem-processada.png'
                 self.mongodb_service.save_processing_result(
                     image_data=image_data,

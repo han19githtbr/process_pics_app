@@ -42,7 +42,9 @@ export const useLivePreview = (
     setLoading(true);
 
     timeoutRef.current = setTimeout(() => {
-      segmentImage(image, options, fileName)
+      // `preview: true` garante que o backend NUNCA grave esta chamada no
+      // histórico/MongoDB — só o botão "Segmentar Imagem" persiste dados.
+      segmentImage(image, options, fileName, true)
         .then((data) => {
           if (requestIdRef.current === requestId) {
             setPreview(data);
