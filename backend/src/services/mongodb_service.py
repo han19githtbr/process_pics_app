@@ -49,6 +49,13 @@ class MongoDBService:
             self.database = self.client[self.db_name]
             self.collection = self.database[self.collection_name]
             self.is_enabled = True
+
+            try:
+                # Índice para permitir sort por data sem estourar o limite de
+                # memória do MongoDB (evita a etapa de sort bloqueante em memória).
+                self.collection.create_index([('createdAt', -1)])
+            except PyMongoError as exc:
+                logger.warning('Não foi possível criar índice createdAt: %s', exc)
         except Exception as exc:
             logger.error(
                 'Falha ao conectar no MongoDB (uri configurada, mas conexão/ping falhou): %s',
@@ -103,7 +110,12 @@ class MongoDBService:
     def list_history(self, limit: int = 20) -> List[Dict[str, Any]]:
         if self.is_enabled and self.collection is not None:
             try:
-                items = list(self.collection.find({}).sort('createdAt', -1).limit(limit))
+                items = list(
+                    self.collection.find({})
+                    .sort('createdAt', -1)
+                    .limit(limit)
+                    .allow_disk_use(True)
+                )
                 for item in items:
                     item['_id'] = str(item.get('_id'))
                 return items
@@ -154,7 +166,10 @@ class MongoDBService:
                     ]
                 }
                 items = list(
-                    self.collection.find(mongo_filter).sort('createdAt', -1).limit(limit)
+                    self.collection.find(mongo_filter)
+                    .sort('createdAt', -1)
+                    .limit(limit)
+                    .allow_disk_use(True)
                 )
                 for item in items:
                     item['_id'] = str(item.get('_id'))
