@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useSegmenter } from '../../hooks/useSegmenter';
 import { useImageUpload } from '../../hooks/useImageUpload';
+import { useLivePreview } from '../../hooks/useLivePreview';
 import { ImageUploader } from '../ImageUploader';
 import { LetterGrid } from '../LetterGrid';
 import { ControlPanel } from '../ControlPanel';
@@ -76,6 +77,19 @@ export const Segmenter: React.FC<SegmenterProps> = ({ onLogout }) => {
     splitGroupedLetters: true,
     filterNonLetters: true,
   });
+
+  // Preview ao vivo: roda a segmentação (com debounce) sempre que a imagem
+  // de origem ou os parâmetros mudam, para o usuário acompanhar o efeito de
+  // cada ajuste (Sensibilidade, Margem do recorte, toggles, etc.) em tempo real.
+  const [previewSignal, setPreviewSignal] = useState(0);
+  const livePreview = useLivePreview(sourceUpload.image, sourceUpload.file?.name, options);
+
+  const previewDebugImage = selectedHistoryResult
+    ? selectedHistoryResult.debugImage
+    : livePreview.preview?.debugImage ?? result?.debugImage;
+  const previewLetterCount = selectedHistoryResult
+    ? selectedHistoryResult.letters?.length ?? 0
+    : livePreview.preview?.letters?.length ?? result?.letters?.length ?? 0;
 
   const loadHistory = useCallback(async () => {
     setHistoryLoading(true);
@@ -149,6 +163,9 @@ export const Segmenter: React.FC<SegmenterProps> = ({ onLogout }) => {
 
   const handleOptionsChange = (newOptions: Partial<ProcessingOptions>) => {
     setOptions(prev => ({ ...prev, ...newOptions }));
+    if (sourceUpload.image) {
+      setPreviewSignal((n) => n + 1);
+    }
   };
 
   const handleSegment = async () => {
@@ -430,6 +447,8 @@ export const Segmenter: React.FC<SegmenterProps> = ({ onLogout }) => {
             saveLoading={saveLoading}
             hasImage={!!sourceUpload.image}
             hasResult={!!displayedResult?.letters?.length}
+            previewImage={previewDebugImage}
+            previewLoading={livePreview.loading}
           />
         </aside>
 
@@ -450,10 +469,11 @@ export const Segmenter: React.FC<SegmenterProps> = ({ onLogout }) => {
               <ImageUploader
                 onImageUpload={handleSourceUpload}
                 image={sourceUpload.image}
-                debugImage={displayedResult?.debugImage}
-                debugCount={displayedResult?.letters?.length ?? 0}
+                debugImage={previewDebugImage}
+                debugCount={previewLetterCount}
                 onReset={handleSourceReset}
                 fileName={sourceUpload.file?.name}
+                focusDebugSignal={previewSignal}
               />
             </div>
 
@@ -792,4 +812,3 @@ export const Segmenter: React.FC<SegmenterProps> = ({ onLogout }) => {
     </div>
   );
 };
-

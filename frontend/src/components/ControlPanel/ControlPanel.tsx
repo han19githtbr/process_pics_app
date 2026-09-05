@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Sliders,
   Sparkles,
@@ -28,6 +28,10 @@ interface ControlPanelProps {
   saveLoading: boolean;
   hasImage: boolean;
   hasResult: boolean;
+  /** Imagem com o efeito do recorte/detecção já aplicado (debug view). */
+  previewImage?: string;
+  /** true enquanto o preview ao vivo está sendo recalculado no backend. */
+  previewLoading?: boolean;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -40,12 +44,40 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   saveLoading,
   hasImage,
   hasResult,
+  previewImage,
+  previewLoading,
 }) => {
+  // Controla qual parâmetro está sendo ajustado no momento, para exibir a
+  // pré-visualização ao vivo logo abaixo dele no layout mobile (onde a
+  // imagem carregada normalmente fica fora de vista, atrás deste painel).
+  const [activeControlKey, setActiveControlKey] = useState<string | null>(null);
+
   const handleChange = <K extends keyof ProcessingOptions>(
     key: K,
     value: ProcessingOptions[K]
   ) => {
     onChange({ [key]: value });
+  };
+
+  const renderMobilePreview = (key: string) => {
+    if (activeControlKey !== key || !hasImage) return null;
+
+    return (
+      <div className="mobile-inline-preview" aria-live="polite">
+        {previewImage ? (
+          <>
+            <img src={previewImage} alt="Pré-visualização ao vivo do recorte" />
+            {previewLoading && (
+              <span className="mobile-inline-preview-badge">Atualizando…</span>
+            )}
+          </>
+        ) : (
+          <div className="mobile-inline-preview-loading">
+            {previewLoading ? 'Gerando pré-visualização…' : 'Ajuste o parâmetro para ver o efeito na imagem.'}
+          </div>
+        )}
+      </div>
+    );
   };
 
   const applyPreset = (preset: 'balanced' | 'sensitive' | 'denoise') => {
@@ -100,6 +132,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           onChange={(e) =>
             handleChange('sensitivity', parseFloat(e.target.value))
           }
+          onFocus={() => setActiveControlKey('sensitivity')}
+          onPointerDown={() => setActiveControlKey('sensitivity')}
           aria-label="Sensibilidade de detecção"
         />
       ),
@@ -121,6 +155,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           onChange={(e) =>
             handleChange('padding', parseInt(e.target.value))
           }
+          onFocus={() => setActiveControlKey('padding')}
+          onPointerDown={() => setActiveControlKey('padding')}
           aria-label="Margem de recorte"
         />
       ),
@@ -142,6 +178,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           onChange={(e) =>
             handleChange('minLetterSize', parseInt(e.target.value))
           }
+          onFocus={() => setActiveControlKey('minLetterSize')}
+          onPointerDown={() => setActiveControlKey('minLetterSize')}
           aria-label="Tamanho mínimo do caractere"
         />
       ),
@@ -212,6 +250,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             </div>
             <div className="slider-wrap">{setting.render}</div>
             <small>{setting.hint}</small>
+            {renderMobilePreview(setting.key)}
           </div>
         ))}
 
@@ -250,7 +289,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
         {/* Feature Toggles */}
         <div className="toggle-list">
-          <label className="toggle-item">
+          <label
+            className="toggle-item"
+            onFocus={() => setActiveControlKey('splitGroupedLetters')}
+            onClick={() => setActiveControlKey('splitGroupedLetters')}
+          >
             <input
               type="checkbox"
               checked={options.splitGroupedLetters !== false}
@@ -268,8 +311,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               <small>Projeção vertical para quebra de caracteres adjacentes (kerning).</small>
             </span>
           </label>
+          {renderMobilePreview('splitGroupedLetters')}
 
-          <label className="toggle-item">
+          <label
+            className="toggle-item"
+            onFocus={() => setActiveControlKey('filterNonLetters')}
+            onClick={() => setActiveControlKey('filterNonLetters')}
+          >
             <input
               type="checkbox"
               checked={options.filterNonLetters !== false}
@@ -287,8 +335,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               <small>Descarta linhas, sublinhados, molduras e artefatos geométricos.</small>
             </span>
           </label>
+          {renderMobilePreview('filterNonLetters')}
 
-          <label className="toggle-item">
+          <label
+            className="toggle-item"
+            onFocus={() => setActiveControlKey('filterBackgroundNoise')}
+            onClick={() => setActiveControlKey('filterBackgroundNoise')}
+          >
             <input
               type="checkbox"
               checked={options.filterBackgroundNoise !== false}
@@ -306,8 +359,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               <small>Rejeita molduras decorativas, fundos coloridos, desenhos e artefatos de papel.</small>
             </span>
           </label>
+          {renderMobilePreview('filterBackgroundNoise')}
 
-          <label className="toggle-item">
+          <label
+            className="toggle-item"
+            onFocus={() => setActiveControlKey('removeNoise')}
+            onClick={() => setActiveControlKey('removeNoise')}
+          >
             <input
               type="checkbox"
               checked={options.removeNoise}
@@ -325,8 +383,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               <small>Aplica filtragem morfológica para limpar ruído sal-e-pimenta.</small>
             </span>
           </label>
+          {renderMobilePreview('removeNoise')}
 
-          <label className="toggle-item">
+          <label
+            className="toggle-item"
+            onFocus={() => setActiveControlKey('enhanceContrast')}
+            onClick={() => setActiveControlKey('enhanceContrast')}
+          >
             <input
               type="checkbox"
               checked={options.enhanceContrast}
@@ -344,6 +407,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               <small>Equalização CLAHE para ressaltar caracteres em fundos difíceis.</small>
             </span>
           </label>
+          {renderMobilePreview('enhanceContrast')}
         </div>
       </div>
 

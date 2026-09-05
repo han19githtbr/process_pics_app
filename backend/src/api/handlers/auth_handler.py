@@ -23,6 +23,7 @@ async def login(request: Request, response: Response):
     response.set_cookie(
         settings.AUTH_COOKIE_NAME,
         create_session_token(settings),
+        path='/',
         httponly=True,
         secure=settings.AUTH_COOKIE_SECURE,
         samesite=settings.AUTH_COOKIE_SAMESITE,
@@ -37,7 +38,19 @@ def hmac_compare(first: str, second: str) -> bool:
 
 
 def logout(request: Request, response: Response):
-    response.delete_cookie(request.app.state.settings.AUTH_COOKIE_NAME)
+    settings = request.app.state.settings
+    # As opções abaixo (path/secure/httponly/samesite) precisam ser IDÊNTICAS
+    # às usadas em set_cookie no login. Se não baterem, o navegador entende
+    # que é um cookie "diferente" e não apaga o cookie de sessão original —
+    # foi por isso que, após sair, reabrir o app (ou fechar e reabrir o
+    # navegador) sem passar pelo login caía direto no dashboard.
+    response.delete_cookie(
+        settings.AUTH_COOKIE_NAME,
+        path='/',
+        httponly=True,
+        secure=settings.AUTH_COOKIE_SECURE,
+        samesite=settings.AUTH_COOKIE_SAMESITE,
+    )
     return {'authenticated': False}
 
 

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useId } from 'react';
+import React, { useRef, useState, useId, useEffect } from 'react';
 import {
   UploadCloud,
   Image as ImageIcon,
@@ -19,6 +19,13 @@ interface ImageUploaderProps {
   debugCount?: number;
   onReset?: () => void;
   fileName?: string;
+  /**
+   * Incremente este número (ex.: a cada mudança de parâmetro) para forçar
+   * a exibição automática da aba "Debug" — usado para mostrar o efeito
+   * ao vivo dos ajustes de Sensibilidade, Margem do recorte, etc. sem que
+   * o usuário precise clicar manualmente na aba.
+   */
+  focusDebugSignal?: number;
 }
 
 export const ImageUploader: React.FC<ImageUploaderProps> = ({
@@ -28,12 +35,23 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
   debugCount = 0,
   onReset,
   fileName,
+  focusDebugSignal,
 }) => {
   const inputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [activeView, setActiveView] = useState<'original' | 'debug'>('original');
   const [showModal, setShowModal] = useState(false);
+
+  // Sempre que o pai sinaliza que um parâmetro de processamento mudou
+  // (e há uma imagem carregada), muda automaticamente para a aba "Debug"
+  // para que o efeito do ajuste apareça imediatamente, ao vivo.
+  useEffect(() => {
+    if (focusDebugSignal) {
+      setActiveView('debug');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusDebugSignal]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
