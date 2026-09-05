@@ -16,21 +16,24 @@ A solução é desenhada para:
 - manter todas as funcionalidades adicionais desenvolvidas (comparação de plágio, histórico persistido no MongoDB Atlas com fallback local, exclusão individual de imagens e limpeza total do banco de dados, rotação 90° de imagens, exportação em `.zip`, alternador de temas claro/escuro).
 - funcionar como Progressive Web App (PWA), com instalação no dispositivo, modo standalone e carregamento do shell visual em cache.
 
-## 2. Pipeline das 7 Etapas do Trabalho em PDF
+## 2. Pipeline das 7 Etapas do Trabalho em PDF (+ 1 Etapa de Calibração Implementada)
 
-O documento acadêmico define um fluxo sequencial estrito de processamento de imagens:
+O documento acadêmico define um fluxo sequencial estrito de processamento de imagens. A aplicação segue fielmente as 7 etapas originais e acrescenta 1 etapa extra (**Passo 4.5**, fora do documento acadêmico) para corrigir um problema físico real observado em fontes vazadas/contornadas — ver seção 3.8. O Pipeline Viewer do frontend exibe as **8 etapas** nesta ordem:
 
 | Passo | Nome no Trabalho | Técnica / Fórmula | Objetivo e Comportamento |
 | :---: | :--- | :--- | :--- |
-| **1** | **Imagem Load** | `cv2.imread` (matriz NumPy $H \times W \times 3$) | Carregamento da imagem em memória com profundidade de 24 bits (8 bits por canal BGR/RGB). |
+| **1** | **Imagem Load** | `cv2.imread` (matriz NumPy $H \times W \times 3$) | Carregamento da imagem em memória com profundidade de 24 bits (8 bits por canal BGR/RGB). Se o texto detectado for muito pequeno/denso, a imagem já é ampliada aqui (interpolação bicúbica) — ver seção 3.8.2. |
 | **2** | **Tons de Cinza** | $Y \leftarrow 0.299 \cdot R + 0.587 \cdot G + 0.114 \cdot B$ (`cv2.cvtColor`) | Conversão para escala de cinza via luminância ponderada, mapeando a intensidade de cada pixel para $[0..255]$. |
 | **3** | **Suavização da Imagem** | `cv2.bilateralFilter(gray, 10, 75, 75)` | Filtro bilateral não-linear para atenuação de ruído preservando arestas e bordas de texto nítidas. |
 | **4** | **Binarização Preto & Branco** | Método de Otsu + `cv2.bitwise_not` | Cálculo estatístico do limiar ótimo $T$ e inversão para que os caracteres fiquem em branco ($255$) sobre fundo preto ($0$). |
+| **4.5** | **Reconexão de Traços Quebrados** *(calibração adicional, não faz parte do PDF)* | `cv2.morphologyEx(bin, MORPH_CLOSE, elemento elíptico)` com raio escolhido por evidência de fragmentação, não fixo | Fecha micro-quebras de anti-aliasing nos contornos de fontes vazadas/apenas-contorno (ex.: "O", "P", "Q", "R", "S" desenhados só com o traço externo), sem fundir letras vizinhas bem formadas — ver seção 3.8.1. |
 | **5** | **Detecção de Bordas** | `cv2.Canny(bin, 70, 150)` | Operador direcional de Canny com derivadas de Sobel ($G_x, G_y$), supressão de não-máximos e histerese (limiares 70 e 150). |
 | **6** | **Identificação de Contornos** | `cv2.findContours(edges, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE)` | Rastreamento de pontos vizinhos com compressão de redundâncias para identificar fronteiras de cada caractere. |
 | **7** | **Bounding Rects & Recorte** | $x,y,w,h = \text{boundingRect}(c)$; $\text{curt} = \text{img}[y:y+h, x:x+w]$ | Cálculo da caixa delimitadora retangular e extração da submatriz de cada letra, ordenando em fluxo natural de leitura. |
 
 > **Nota sobre reconhecimento de caracteres (`cv2.matchShapes`):** O trabalho acadêmico descreve na seção de observações a técnica de comparar contornos de letras candidatas com contornos de referência de um alfabeto padrão usando `ret = cv2.matchShapes(c, l, cv2.CONTOURS_MATCH_I3, 0.0)`. Na aplicação, essa análise morfológica é integrada à pontuação de confiança e à validação de coerência tipográfica.
+
+> **Nota sobre a numeração exibida no Pipeline Viewer:** os títulos de cada etapa mantêm a numeração original do PDF (Passo 1 a Passo 7); a etapa extra aparece identificada como "Passo 4.5" entre o Passo 4 e o Passo 5, tanto no card quanto na contagem "8 etapas" mostrada no topo do painel.
 
 ## 3. Melhorias de Precisão Implementadas
 
@@ -50,10 +53,11 @@ O documento acadêmico concluiu honestamente que o algoritmo *"funciona para tod
   2. **Preservação de Caracteres Monolineares:** O filtro de blocos sólidos geométricos compactos agora exige que o componente não seja esguio ($0.25 \le w/h \le 3.5$), impedindo que uma haste puramente vertical de alta densidade (como 'l' ou 'I') seja rotulada como "bloco geométrico sólido".
 
 ### 3.3. Rejeição Avançada de Ruídos de Fundos Coloridos, Desenhos e Molduras
-Em imagens ricas contendo fundos coloridos, ilustrações, grafismos, vinhetas ou cartões decorativos (como demonstrado na pasta `img/` com `text_image.jpg`, `ruidos.jpg` e `recortes.jpg`), a visão computacional tradicional sofre com a captura indevida de elementos visuais espúrios:
+Em imagens ricas contendo fundos coloridos, ilustrações, grafismos, vinhetas ou cartões decorativos (como demonstrado na pasta `img/` com `text_image.jpg`, `ruidos.jpg` e `recortes.jpg`, e no material infantil com ilustrações testado na sessão da seção 25.5), a visão computacional tradicional sofre com a captura indevida de elementos visuais espúrios:
 1. **Validação de Conteúdo e Contraste no Espaço de Imagem (Crop Content Validation):** Avaliação do desvio padrão ($\sigma_{\text{crop}}$) e da faixa dinâmica ($\Delta I$) para descartar recortes lisos de papel ou gradientes sem texto.
 2. **Teste de Preenchimento Central (Central Fill):** Descarta molduras retangulares e cantos em "L" vazados ($\text{CentralFill} < 4\%$).
 3. **Normalização Morfológica (TopHat / BlackHat):** Suprime variações lentas de fundo e sombras degradê antes da binarização.
+4. **Rejeição por Saturação de Cor HSV (`filter_background_noise`):** texto impresso/manuscrito é predominantemente acromático (tinta preta, cinza ou de uma única cor sobre papel claro — saturação média medida em amostras reais: ~8 a 30), enquanto ilustrações e desenhos coloridos apresentam saturação muito mais alta (~90 em média nas amostras testadas). Recortes cuja saturação média HSV do canal S ultrapassa 55 são descartados. **Limitação honesta:** este filtro rejeita a fração claramente colorida das ilustrações, mas **não elimina falsos positivos em traços pretos/acromáticos dentro do próprio desenho** (contornos, sombras em preto-e-branco), pois o método continua sendo geometria + cor, não reconhecimento semântico de forma (OCR/ML). Em testes com uma imagem de poema infantil ilustrado, o filtro reduziu em cerca de 45-50% os recortes espúrios gerados sobre a ilustração, sem descartar nenhuma letra real do texto.
 
 ### 3.4. Segmentação em Textos Densos e Parágrafos (Resolução de Alta Densidade e Fusão de Diacríticos)
 Imagens de alta resolução contendo páginas de livros ou parágrafos inteiros (como `wandy-luz.jpg`, com 18 linhas e mais de 600 caracteres) apresentavam perda massiva de letras (detectando apenas 127 ou 4 letras no sistema original). Os problemas identificados e corrigidos foram:
@@ -135,11 +139,39 @@ $$C = 0.35 \cdot S_{\text{morf}} + 0.30 \cdot S_{\text{contraste}} + 0.20 \cdot 
    - **Auditoria Individual no Modal Inspetor:** ao clicar sobre qualquer letra na galeria ou na fita de leitura, o modal exibe a seção **Auditoria dos 4 Pilares deste Caractere**, discriminando com exatidão como as dimensões físicas, o contraste e a densidade daquele recorte específico geraram sua nota de confiança;
    - **Diagnósticos em Tempo Real (`warnings`):** o sistema correlaciona a pontuação obtida com diagnósticos em linguagem natural (ex: indicando se o contraste moderado se deve a sombras ou se caracteres largos se devem a kerning apertado).
 
+### 3.8. Reconexão Adaptativa de Traços Quebrados (Fontes Vazadas/Contornadas) & Escala Automática para Texto Pequeno
+
+Esta seção documenta uma correção implementada após relato de um caso concreto: um alfabeto A-Z em fonte **vazada** (apenas o contorno externo da letra, sem preenchimento interno) detectava corretamente apenas uma fração das 26 letras, mesmo ajustando os Parâmetros de Visão (Sensibilidade, Margem, Tamanho Mínimo).
+
+#### 3.8.1. Causa raiz identificada: micro-quebras de anti-aliasing em traços vazados
+
+Em um glifo desenhado apenas com contorno, a curvatura acentuada de certos trechos (bojos de "P", "R", "S", "B", curvas de "O", "Q", "U"...) faz com que, após a suavização bilateral, alguns pixels da borda fiquem com intensidade intermediária entre tinta e papel. Como a binarização de Otsu usa um único limiar global, esses pixels de transição ficam **abaixo do limiar** em pequenos trechos — quebrando o anel de contorno de uma letra em 2 ou mais fragmentos desconectados. O `cv2.connectedComponentsWithStats` deixa de enxergar 1 componente por letra e passa a enxergar vários fragmentos menores, dos quais boa parte é descartada pelos filtros de tamanho/proporção — fazendo a letra "sumir" do resultado final ou aparecer só parcialmente (uma caixa cobrindo apenas um pedaço do traço).
+
+Isso foi confirmado isolando a máscara binária da amostra reportada: o alfabeto A-Z vazado gerava **69 componentes conectados brutos** para apenas 26 letras — a maioria eram fragmentos de 1 a poucos pixels de altura resultantes das quebras descritas acima.
+
+**Solução implementada — `OpenCVProcessor.reconnect_broken_strokes`:** um fechamento morfológico (`cv2.MORPH_CLOSE`, elemento elíptico) é aplicado logo após a binarização (Passo 4.5). O raio do fechamento **não é fixo**: a função testa uma sequência crescente de raios e mede, a cada tentativa, quantos componentes continuam com altura muito menor (< 55%) do que a altura típica dos maiores componentes da imagem — uma assinatura de fragmento de letra quebrada. O menor raio que minimiza essa contagem de fragmentos é escolhido; se a imagem já não tiver fragmentos (texto já bem formado, mesmo com kerning apertado), **nenhum fechamento é aplicado**. Essa escolha baseada em evidência (e não um raio fixo proporcional apenas ao tamanho da fonte) foi validada especificamente para evitar o risco oposto: um raio fixo grande o bastante para reconectar traços quebrados também correria o risco de fundir letras vizinhas genuinamente distintas em fontes com kerning apertado — o que foi observado e corrigido durante os testes desta mesma correção (ver testes automatizados `test_segmenter_preserves_bold_and_outline_alphabets`).
+
+**Resultado no caso relatado:** 69 componentes brutos → 26 componentes após a reconexão → **26 de 26 letras detectadas e recortadas corretamente**, cada uma com confiança 100% (exceto uma a 98% por leve variação de proporção). O aviso "Reconexão de traços ativa" é exibido automaticamente quando essa correção é efetivamente aplicada em uma imagem.
+
+#### 3.8.2. Escala Automática para Texto Pequeno/Denso (`OpenCVProcessor.auto_upscale_small_text`)
+
+Ao investigar os outros tipos de imagem mencionados no relato (parágrafo justificado/alinhado à esquerda em fonte serifada pequena), identificou-se um segundo problema físico, distinto do anterior: quando a altura do caractere é pequena (abaixo de ~25-30px), o próprio anti-aliasing das letras faz os traços de caracteres vizinhos **se tocarem** após a binarização — o componente conectado resultante passa a ser a palavra inteira (ou vários caracteres colados), não uma letra isolada. Como não há quebra física real entre as letras (ao contrário do caso 3.8.1), fechamento morfológico não ajuda aqui — o problema é resolução insuficiente, não fragmentação.
+
+**Solução implementada:** antes de qualquer binarização (Passo 1.5), o sistema estima a altura mediana dos caracteres candidatos com uma binarização auxiliar rápida. Se essa altura estiver abaixo de ~46px, a imagem de trabalho inteira é ampliada por interpolação bicúbica (`cv2.INTER_CUBIC`) até que a altura estimada atinja essa referência (fator limitado a 4x e a uma dimensão máxima absoluta, para não comprometer o tempo de processamento). A ampliação recria pixels de transição adicionais entre letras vizinhas, restaurando um "vale" de separação no perfil de projeção vertical que o desmembrador (`_split_wide_component`, seção 3.1) consegue detectar. O fator de ampliação aplicado é reportado em `metadata.upscale_factor` e no aviso "Escala adaptativa aplicada".
+
+**Resultado observado:** num parágrafo de teste em fonte serifada pequena (~18-20px de altura de caractere), a segmentação sem esta correção agrupava linhas inteiras/palavras completas em um único recorte; com a ampliação automática (fator ~2.5x neste caso), a segmentação passou a isolar a maioria das letras individualmente, restando apenas pares muito raros de caracteres com kerning extremo ainda fundidos — uma melhora substancial, embora não seja uma garantia de 100% de separação em qualquer corpo tipográfico.
+
+#### 3.8.3. O que continua sendo uma limitação honesta após esta correção
+
+- Em imagens mistas (texto + ilustração colorida), traços pretos/acromáticos dentro do próprio desenho ainda podem ser confundidos com letras — ver seção 3.3, item 4.
+- A ampliação automática melhora, mas não garante, a separação perfeita de fontes extremamente pequenas ou com kerning negativo agressivo; pares de letras muito próximas (ex.: "ti", "th") ainda podem ocasionalmente permanecer fundidos.
+- Ambas as correções desta seção atuam antes/durante a binarização e não substituem OCR: o sistema continua sem qualquer modelo de linguagem ou reconhecimento semântico de forma.
+
 ## 4. Funcionalidades implementadas no Produto
 
-- **Execução e Exibição do Pipeline de 7 Passos do PDF:** o backend envia em cada requisição as imagens intermediárias reais geradas pelo OpenCV, permitindo navegar visualmente pelas etapas pedagógicas do trabalho acadêmico.
+- **Execução e Exibição do Pipeline de 7 Passos do PDF + 1 Etapa de Calibração:** o backend envia em cada requisição as imagens intermediárias reais geradas pelo OpenCV, permitindo navegar visualmente pelas 8 etapas (7 pedagógicas do trabalho acadêmico + o Passo 4.5 de Reconexão de Traços Quebrados, ver seção 3.8).
 - **Componente PipelineViewer no Frontend:**
-  * Aba *Pipeline de Processamento*: carrossel interativo com *stepper* numerado, visualização das 7 imagens intermediárias, fórmulas matemáticas formatadas em código mono e comandos do OpenCV;
+  * Aba *Pipeline de Processamento*: carrossel interativo com *stepper* numerado, visualização das 8 imagens intermediárias, fórmulas matemáticas formatadas em código mono e comandos do OpenCV;
   * Aba *Fundamentação & Limitações*: explica didaticamente as causas físicas e matemáticas de eventuais imperfeições (kerning estreito, ruídos de iluminação, fragmentação de acentos) e cita o trecho oficial de conclusão do trabalho acadêmico.
 - **Seletor de Modo no Painel de Configurações:**
   * Modo Aprimorado: executa o pipeline do PDF complementado com divisão inteligente de caracteres via perfil de projeção vertical e filtros morfológicos de ruído e linhas;
@@ -701,9 +733,11 @@ Esta seção consolida, num único lugar, onde e como a aplicação expõe a qua
 ### 24.2. Imperfeições conhecidas do método (o que a aplicação assume abertamente)
 
 - O pipeline é baseado em visão computacional clássica (binarização + contornos), **não em OCR com aprendizado profundo**; por isso ele segmenta e recorta caracteres, mas não "lê" o alfabeto com certeza absoluta — a confiança exibida é uma estimativa geométrica, não uma probabilidade de reconhecimento textual.
-- Fontes com kerning muito apertado, cursivas ou manuscritas podem, em casos extremos, ainda produzir um recorte fundido de duas letras, mesmo com o desmembramento inteligente ativo.
+- Fontes com kerning muito apertado, cursivas ou manuscritas podem, em casos extremos, ainda produzir um recorte fundido de duas letras, mesmo com o desmembramento inteligente ativo e a escala automática para texto pequeno (seção 3.8.2).
 - Imagens com iluminação muito irregular, baixo contraste ou fundos ricos em textura podem gerar recortes espúrios ou descartar traços finos, apesar dos filtros de validação de conteúdo e supressão de sombra.
-- Conforme documentado no trabalho acadêmico de origem (UFRRJ, TM438), o método é mais eficiente em palavras/letras maiores; textos muito pequenos ou de baixa resolução tendem a reduzir a confiança média do lote.
+- Fontes **vazadas/apenas-contorno** (sem preenchimento interno) podem sofrer micro-quebras de anti-aliasing na binarização; a etapa de Reconexão de Traços Quebrados (Passo 4.5, seção 3.8.1) corrige a grande maioria dos casos observados, mas fontes extremamente finas ou de baixíssima resolução ainda podem exigir ajuste manual de sensibilidade.
+- Em imagens mistas (texto sobre ou ao lado de ilustrações/desenhos coloridos), o filtro de saturação de cor (seção 3.3, item 4) descarta a maior parte dos elementos gráficos coloridos, mas **traços pretos/acromáticos dentro da própria ilustração ainda podem ser confundidos com letras**, pois o método não realiza reconhecimento semântico de forma.
+- Conforme documentado no trabalho acadêmico de origem (UFRRJ, TM438), o método é mais eficiente em palavras/letras maiores; textos muito pequenos ou de baixa resolução tendem a reduzir a confiança média do lote, ainda que a escala automática (seção 3.8.2) mitigue parte desse efeito.
 
 ### 24.3. Por que isso é exibido dessa forma
 
@@ -777,3 +811,24 @@ cd "C:\Users\Handy Claude\Desktop\processamento-de-imagens\backend"
   - **Fluxo novo (habilitado por esta correção):** ajustar os parâmetros e observar o efeito ao vivo na imagem, sem clicar em "Segmentar Imagem" nenhuma vez → quando o resultado desejado aparecer, clicar em **"Salvar"** diretamente — o `saveableResult` usa o último preview ao vivo automaticamente.
   - Em ambos os casos, o que **não** volta a acontecer é o salvamento automático a cada ajuste de slider — isso continua bloqueado de propósito (seção 25.3), para não voltar a poluir o histórico. Salvar só ocorre por uma ação explícita: clicar em "Segmentar Imagem" (grava sozinho) ou clicar em "Salvar" (grava o que estiver sendo exibido no momento, preview ao vivo incluso).
 - **Arquivo alterado:** `frontend/src/components/Segmenter/Segmenter.tsx`.
+
+### 25.5. Alfabeto vazado detectando só parte das letras + reconexão de traços + escala automática para texto pequeno
+
+- **Sintoma reportado:** numa imagem de amostra com o alfabeto A-Z em fonte **vazada** (apenas contorno, sem preenchimento), a aplicação detectava e recortava só uma fração das 26 letras (visto no print do usuário: 10 caixas verdes, cobrindo parcialmente até letras como "D", "M" e "P"), mesmo ajustando Sensibilidade, Margem do Recorte e Tamanho Mínimo nos Parâmetros de Visão.
+
+- **Investigação e causa raiz:** isolando a máscara binária (Otsu) dessa amostra, confirmou-se visualmente (ampliação 3x da região O-P-Q-R-S-T-U) que o contorno de várias letras tinha **quebras reais de 1 a poucos pixels**, principalmente nos trechos mais curvos — um efeito de anti-aliasing combinado com o limiar único e global do método de Otsu (detalhado na seção 3.8.1). O `cv2.connectedComponentsWithStats` media **69 componentes conectados brutos** para as 26 letras da imagem — a maioria fragmentos pequenos descartados pelos filtros de tamanho/proporção, o que explica tanto as letras totalmente ausentes quanto as caixas cobrindo só um pedaço do traço.
+
+- **Correção implementada:** nova etapa de pipeline, Passo 4.5 — **Reconexão de Traços Quebrados** (`OpenCVProcessor.reconnect_broken_strokes`, seção 3.8.1) — um fechamento morfológico com raio escolhido por evidência de fragmentação (não um raio fixo), aplicado tanto no Modo Aprimorado quanto no Modo Acadêmico. **Resultado na amostra relatada: 26 de 26 letras detectadas**, cada uma em uma única caixa delimitadora completa, com confiança entre 98% e 100%.
+
+- **Validação para não regredir casos já corretos:** a primeira versão da correção usava um raio fixo proporcional apenas à altura da fonte, o que **quebrou** dois testes automatizados existentes (fundindo letras distintas em fontes sintéticas com kerning apertado). A versão final, baseada em evidência de fragmentação (compara a contagem de fragmentos antes/depois de cada raio testado e só aplica o menor raio que efetivamente reduz essa contagem), passou a preservar esses casos: `pytest backend/tests/test_segmenter.py` — **18 de 18 testes** (25 de 25 no diretório `tests/` completo) voltaram a passar, incluindo `test_segmenter_preserves_bold_and_outline_alphabets`.
+
+- **Verificação adicional solicitada (três outras amostras de texto):**
+  * **Parágrafo justificado/alinhado à esquerda em fonte serifada pequena:** identificado um segundo problema, distinto do primeiro — letras vizinhas se tocando fisicamente após a binarização por causa do tamanho pequeno do corpo tipográfico (não uma quebra, e sim falta de resolução). Corrigido com a nova etapa **Passo 1.5 — Escala Automática para Texto Pequeno** (`OpenCVProcessor.auto_upscale_small_text`, seção 3.8.2): a imagem é ampliada por interpolação bicúbica quando a altura mediana estimada dos caracteres é pequena demais. Resultado: a segmentação passou de blocos de palavra inteira para, na grande maioria dos casos, caixas por letra individual.
+  * **Poema infantil com ilustrações coloridas (sapo, pato, bola):** identificados falsos positivos nas ilustrações (elementos gráficos sendo recortados como se fossem letras). Adicionado o filtro de saturação de cor HSV (seção 3.3, item 4), que descartou cerca de 45-50% desses falsos positivos nos testes realizados — o restante (traços pretos/acromáticos dentro do próprio desenho) é uma limitação documentada honestamente na seção 3.8.3, pois exigiria reconhecimento semântico de forma (OCR/ML) para ser eliminado por completo.
+  * **Citação em texto branco sobre fundo preto:** já funcionava razoavelmente bem antes desta sessão (a detecção de fundo escuro/inversão de polaridade já existia); a escala automática para texto pequeno trouxe uma melhora adicional nessa amostra também, já que o corpo tipográfico era pequeno.
+
+- **Transparência adicionada à aplicação:** os avisos dinâmicos (`meta.warnings`) agora informam explicitamente quando a reconexão de traços foi aplicada e quando a escala automática foi aplicada (com o fator de ampliação usado), além de um aviso permanente sobre a limitação de ilustrações coloridas quando o filtro de fundo está ativo. O Pipeline Viewer passou a exibir 8 etapas (a etapa nova aparece como "Passo 4.5") e cada card do Passo 4 e do Passo 4.5 mostra a contagem real de componentes conectados antes/depois da reconexão, tornando a explicação auditável e não apenas descritiva.
+
+- **Arquivos alterados:** `backend/src/core/processors/opencv_processor.py` (métodos `reconnect_broken_strokes`, `estimate_median_glyph_height`, `auto_upscale_small_text`), `backend/src/core/segmenters/improved_segmenter.py` (`segment`, `_build_pipeline_steps`, `_filter_components`, `_build_quality_warnings`), `backend/tests/test_segmenter.py` (assert de 8 etapas), `README.md`, `GUIA.md`, `frontend/src/components/PipelineViewer/PipelineViewer.tsx`, `frontend/src/components/ControlPanel/ControlPanel.tsx`.
+
+- **Verificação:** `pytest backend/tests/` — 25 de 25 testes passando. Testado manualmente com as 4 imagens de amostra da sessão (alfabeto vazado, parágrafo pequeno, poema ilustrado, citação em fundo preto), com contagens de letras e overlays de depuração conferidos visualmente antes e depois da correção.

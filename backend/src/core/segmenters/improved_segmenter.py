@@ -27,11 +27,14 @@ class ImprovedSegmenter(ILetterSegmenter):
     
     def segment(self, image: np.ndarray, options: Optional[ProcessingOptions] = None) -> SegmentResult:
         """
-        Executa os passos do trabalho em PDF e extrai as letras com alta precisão:
+        Executa os passos do trabalho em PDF (mais 2 etapas de calibração adicionais, marcadas
+        com ".5") e extrai as letras com alta precisão:
         1. Imagem Load (RGB)
+        1.5. Escala Adaptativa para Texto Pequeno/Denso (ampliação bicúbica quando necessário)
         2. Conversão para Tons de Cinza (Y <- 0.299*R + 0.587*G + 0.114*B)
         3. Suavização (Filtro Bilateral preservando bordas)
         4. Binarização (Método de Otsu + bitwise_not)
+        4.5. Reconexão de Traços Quebrados (fecha micro-quebras de anti-aliasing em fontes vazadas)
         5. Detecção de Bordas (Algoritmo de Canny com limiares 70 e 150)
         6. Identificação dos Contornos (findContours RETR_EXTERNAL, CHAIN_APPROX_SIMPLE)
         7. Bounding Rectangles e Recorte das Letras
@@ -41,8 +44,18 @@ class ImprovedSegmenter(ILetterSegmenter):
         if options:
             self.set_options(options)
 
-        # Passo 1: Imagem Load & Redimensionamento
+        # Passo 1: Imagem Load & Redimensionamento (reduz se grande demais)
         processed, scale = self.processor.resize_if_needed(image, self.options.max_image_size)
+
+        # Passo 1.5: Escala Adaptativa para Texto Pequeno/Denso.
+        # Estima a altura mediana dos caracteres antes de qualquer binarização; se o texto for
+        # muito pequeno (letras tendem a se tocar entre si na binarização, impedindo o corte
+        # individual — ver GUIA.md, seção 3.8), a imagem de trabalho é ampliada para dar
+        # margem de pixels suficiente entre caracteres vizinhos.
+        processed, upscale_factor = self.processor.auto_upscale_small_text(
+            processed, max_dimension=self.options.max_image_size * 2
+        )
+        scale = scale * upscale_factor
 
         # Passo 2: Conversão em Tons de Cinza
         gray = self.processor.to_grayscale(processed)
@@ -58,10 +71,18 @@ class ImprovedSegmenter(ILetterSegmenter):
         # Passo 4: Binarização (Método de Otsu com inversão)
         binary_otsu, otsu_thresh = self.processor.binarize_otsu(bilateral)
 
+        # Passo 4.5: Reconexão de Traços Quebrados (ver OpenCVProcessor.reconnect_broken_strokes).
+        # Fecha micro-quebras de anti-aliasing em fontes vazadas/contornadas antes de qualquer
+        # extração de componentes, para que cada letra permaneça um único componente conectado.
+        binary_reconnected = self.processor.reconnect_broken_strokes(binary_otsu)
+        _raw_cc = int(cv2.connectedComponentsWithStats(binary_otsu, 8)[0] - 1)
+        _reconnected_cc = int(cv2.connectedComponentsWithStats(binary_reconnected, 8)[0] - 1)
+        reconnected_gap = _reconnected_cc < _raw_cc
+
         # Seleciona máscara binária de acordo com o modo
         is_academic_mode = getattr(self.options, 'mode', 'enhanced') == 'academic'
         if is_academic_mode:
-            binary = binary_otsu
+            binary = binary_reconnected
             if self.options.remove_noise:
                 binary = self.processor._remove_small_noise(binary, self.options.sensitivity)
         else:
@@ -109,12 +130,14 @@ class ImprovedSegmenter(ILetterSegmenter):
         debug_image = self._create_debug_overlay(processed, validated)
         debug_data_url = ImageUtils.encode_to_data_url(debug_image)
 
-        # Montagem dos 7 passos teóricos do PDF para visualização no frontend
+        # Montagem dos passos (7 etapas teóricas do PDF + 1 etapa de calibração adicional)
+        # para visualização no frontend
         pipeline_steps = self._build_pipeline_steps(
             processed=processed,
             gray=gray,
             bilateral=bilateral,
             binary_otsu=binary_otsu,
+            binary_reconnected=binary_reconnected,
             edges=edges,
             contours_vis=contours_vis,
             debug_image=debug_image,
@@ -138,11 +161,13 @@ class ImprovedSegmenter(ILetterSegmenter):
                 'confidence_score': conf_breakdown['overall'],
                 'confidence_breakdown': conf_breakdown,
                 'scale': scale,
+                'upscale_factor': round(float(upscale_factor), 4),
                 'edge_pixels': int(cv2.countNonZero(edges)),
                 'splits_count': splits_count,
                 'filtered_count': filtered_count,
                 'warnings': self._build_quality_warnings(
-                    validated, components, splits_count, filtered_count, conf_breakdown
+                    validated, components, splits_count, filtered_count, conf_breakdown,
+                    upscale_factor=upscale_factor, reconnected_gap=reconnected_gap,
                 ),
                 'transcript': transcript,
                 'mode': getattr(self.options, 'mode', 'enhanced'),
@@ -156,17 +181,29 @@ class ImprovedSegmenter(ILetterSegmenter):
         gray: np.ndarray,
         bilateral: np.ndarray,
         binary_otsu: np.ndarray,
+        binary_reconnected: np.ndarray,
         edges: np.ndarray,
         contours_vis: np.ndarray,
         debug_image: np.ndarray,
         validated: List[LetterBox],
         otsu_thresh: float,
     ) -> List[Dict[str, Any]]:
-        """Gera as imagens e metadados das 7 etapas descritas no documento em PDF."""
+        """
+        Gera as imagens e metadados das etapas exibidas no frontend: as 7 etapas descritas no
+        documento acadêmico em PDF, mais 1 etapa de calibração adicional (Passo 4.5,
+        Reconexão de Traços Quebrados) implementada nesta aplicação para corrigir a
+        fragmentação de fontes vazadas/contornadas (ver `OpenCVProcessor.reconnect_broken_strokes`
+        e GUIA.md, seção 3.8). Total: 8 etapas.
+        """
         gray_bgr = cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
         bilateral_bgr = cv2.cvtColor(bilateral, cv2.COLOR_GRAY2BGR)
         binary_bgr = cv2.cvtColor(binary_otsu, cv2.COLOR_GRAY2BGR)
+        reconnected_bgr = cv2.cvtColor(binary_reconnected, cv2.COLOR_GRAY2BGR)
         edges_bgr = cv2.cvtColor(edges, cv2.COLOR_GRAY2BGR)
+
+        # Métrica para tornar a explicação da etapa de reconexão auditável (não apenas descritiva)
+        raw_components = int(cv2.connectedComponentsWithStats(binary_otsu, 8)[0] - 1)
+        reconnected_components = int(cv2.connectedComponentsWithStats(binary_reconnected, 8)[0] - 1)
 
         return [
             {
@@ -176,7 +213,9 @@ class ImprovedSegmenter(ILetterSegmenter):
                 'formula': 'Matriz NumPy com shape (H, W, 3) e profundidade 24 bits de cor',
                 'description': (
                     'Carregamento da imagem em memória utilizando OpenCV. A função monta um array multidimensional '
-                    'com a altura, largura e os 3 canais de cores (BGR/RGB).'
+                    'com a altura, largura e os 3 canais de cores (BGR/RGB). Quando o texto detectado é muito pequeno '
+                    '(altura mediana de caractere abaixo de ~46px), a imagem também é ampliada nesta etapa por '
+                    'interpolação bicúbica antes do restante do pipeline (ver seção "Fundamentação & Limitações").'
                 ),
                 'image': ImageUtils.encode_to_data_url(processed),
             },
@@ -210,23 +249,43 @@ class ImprovedSegmenter(ILetterSegmenter):
                 'description': (
                     'Converte a imagem em escala de cinza para preto e branco absoluto. No ponto (x,y) onde a intensidade '
                     'supera o limiar ótimo de Otsu aplica-se 255. A inversão bitwise_not torna as arestas das letras '
-                    'visíveis e prontas para contorno.'
+                    'visíveis e prontas para contorno. Nesta etapa a máscara ainda pode conter quebras de 1 a poucos '
+                    f'pixels nos traços (nesta imagem: {raw_components} componente(s) conectado(s) bruto(s), '
+                    'contando fragmentos).'
                 ),
                 'image': ImageUtils.encode_to_data_url(binary_bgr),
             },
             {
                 'step': 5,
+                'title': 'Passo 4.5: Reconexão de Traços Quebrados (Calibração Adicional)',
+                'technique': 'cv2.morphologyEx(bin, cv2.MORPH_CLOSE, elemento elíptico adaptativo)',
+                'formula': 'raio_kernel ≈ clamp(3, round(altura_mediana_glifo × 0.15), 15)',
+                'description': (
+                    'Etapa adicional (fora do documento acadêmico original) criada para corrigir a fragmentação de '
+                    'fontes vazadas/contornadas: a curvatura acentuada de certos trechos do traço (ex.: bojos de "P", '
+                    '"R", "S", "B", "O") faz alguns pixels de borda ficarem abaixo do limiar único de Otsu, quebrando '
+                    'o contorno de uma letra em vários componentes desconectados. Um fechamento morfológico com raio '
+                    'proporcional à altura mediana dos caracteres reconecta essas micro-quebras sem fundir letras '
+                    f'vizinhas (nesta imagem: {raw_components} → {reconnected_components} componente(s) conectado(s) '
+                    'após a reconexão).'
+                ),
+                'image': ImageUtils.encode_to_data_url(reconnected_bgr),
+            },
+            {
+                'step': 6,
                 'title': 'Passo 5: Detecção de Bordas (Algoritmo de Canny)',
                 'technique': f'cv2.Canny(bin, min={self.options.canny_low}, max={self.options.canny_high})',
                 'formula': 'Derivadas de Sobel Gx e Gy + Supressão de Não-Máximos + Histerese',
                 'description': (
                     'O algoritmo de Canny calcula a primeira derivada horizontal (Gy) e vertical (Gx) e aplica quatro filtros '
-                    'direcionais para localizar com exatidão as arestas ao longo de todas as bordas dos caracteres.'
+                    'direcionais para localizar com exatidão as arestas ao longo de todas as bordas dos caracteres. '
+                    'No modo "Aprimorado", esta etapa recebe a máscara da normalização TopHat/BlackHat (não a do Passo 4.5 '
+                    'exibida acima), que aplica sua própria reconexão de traços internamente — ver seção 3.8 do GUIA.md.'
                 ),
                 'image': ImageUtils.encode_to_data_url(edges_bgr),
             },
             {
-                'step': 6,
+                'step': 7,
                 'title': 'Passo 6: Identificação de Contornos e Bounding Rects',
                 'technique': 'cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)',
                 'formula': 'Agrupamento de pontos vizinhos de mesma intensidade com compressão de redundâncias',
@@ -237,7 +296,7 @@ class ImprovedSegmenter(ILetterSegmenter):
                 'image': ImageUtils.encode_to_data_url(contours_vis),
             },
             {
-                'step': 7,
+                'step': 8,
                 'title': 'Passo 7: Bounding Rects & Recorte Individual',
                 'technique': 'x, y, w, h = cv2.boundingRect(c); curt = target_img[y:y+h, x:x+w]',
                 'formula': 'Recorte matricial indexado por coordenadas [y : y + h, x : x + w]',
@@ -621,6 +680,21 @@ class ImprovedSegmenter(ILetterSegmenter):
                     if std_val < 16.0 or dyn_range < 35.0:
                         continue
 
+                # 8b. Rejeição por saturação de cor (ilustrações e desenhos coloridos).
+                # Texto impresso/manuscrito é predominantemente acromático (tinta preta, cinza
+                # ou de uma única cor sobre papel claro); regiões de desenhos e fotografias
+                # coloridas (personagens, objetos ilustrados) apresentam saturação HSV muito
+                # mais alta. Este filtro NÃO elimina 100% dos falsos positivos em ilustrações
+                # com traço preto (ver limitação documentada no GUIA.md, seção 3.6) — apenas
+                # descarta a fração claramente colorida.
+                if raw_image is not None and raw_image.ndim == 3:
+                    crop_c = raw_image[y0:y1, x0:x1]
+                    if crop_c.size > 0:
+                        hsv_crop = cv2.cvtColor(crop_c, cv2.COLOR_BGR2HSV)
+                        mean_sat = float(np.mean(hsv_crop[:, :, 1]))
+                        if mean_sat > 55.0:
+                            continue
+
             # Limite mínimo de área adaptativo:
             # Rejeita ruídos e poeiras irregulares (área < 16), preservando caracteres compactos (área >= 20).
             min_component_area = max(16, min_size * min_size)
@@ -928,11 +1002,27 @@ class ImprovedSegmenter(ILetterSegmenter):
         splits_count: int = 0,
         filtered_count: int = 0,
         conf_breakdown: Optional[Dict[str, Any]] = None,
+        upscale_factor: float = 1.0,
+        reconnected_gap: bool = False,
     ) -> List[str]:
         """Gera explicações transparentes sobre a detecção, imperfeições e limites do método."""
         warnings = []
         if not letters:
             warnings.append('Nenhum caractere com formato compatível foi detectado. Ajuste a sensibilidade ou verifique o contraste da imagem.')
+
+        if upscale_factor > 1.05:
+            warnings.append(
+                f'Escala adaptativa aplicada: a imagem foi ampliada em {upscale_factor:.2f}x antes da binarização, '
+                'pois os caracteres detectados eram pequenos o bastante para se tocar entre si após a conversão '
+                'para preto e branco (o que impediria o recorte individual).'
+            )
+
+        if reconnected_gap:
+            warnings.append(
+                'Reconexão de traços ativa: foram detectadas e fechadas quebras finas de anti-aliasing nos contornos '
+                'dos caracteres (comum em fontes vazadas/apenas com contorno), evitando que uma letra fosse dividida '
+                'em múltiplos fragmentos desconectados.'
+            )
 
         if splits_count > 0:
             warnings.append(
@@ -964,9 +1054,19 @@ class ImprovedSegmenter(ILetterSegmenter):
                 f"{conf_breakdown.get('description', '')}"
             )
 
+        if filter_bg_noise_flag := getattr(self.options, 'filter_background_noise', True):
+            warnings.append(
+                'Limitação conhecida em imagens mistas: o filtro de saturação de cor descarta a maior parte dos '
+                'elementos gráficos claramente coloridos (desenhos, fotos, ilustrações), mas traços pretos/acromáticos '
+                'dentro de uma ilustração (ex.: contornos de um desenho) ainda podem ser confundidos com caracteres, '
+                'pois o método não realiza reconhecimento semântico de forma (OCR/ML) — apenas geometria e cor.'
+            )
+
         warnings.append(
             'Transparência técnica: Conforme documentado no trabalho em PDF (UFRRJ TM438), o método clássico '
-            '(Bilateral + Otsu + Canny + Contornos) é mais eficiente em palavras e imagens com letras maiores e contraste nítido.'
+            '(Bilateral + Otsu + Canny + Contornos) é mais eficiente em palavras e imagens com letras maiores e contraste nítido. '
+            'Esta aplicação adiciona reconexão adaptativa de traços e escala automática para texto pequeno (seção 3.8 do GUIA.md), '
+            'mas segue sendo visão computacional clássica, não OCR.'
         )
 
         return warnings

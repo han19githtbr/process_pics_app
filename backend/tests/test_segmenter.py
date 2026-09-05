@@ -167,12 +167,13 @@ def test_segmenter_generates_pdf_pipeline_steps():
 
     result = segmenter.segment(image)
 
-    assert len(result.steps) == 7
+    assert len(result.steps) == 8
     step_titles = [s['title'] for s in result.steps]
     assert any("Passo 1" in t for t in step_titles)
     assert any("Passo 2" in t for t in step_titles)
     assert any("Passo 3" in t for t in step_titles)
     assert any("Passo 4" in t for t in step_titles)
+    assert any("Passo 4.5" in t for t in step_titles)
     assert any("Passo 5" in t for t in step_titles)
     assert any("Passo 6" in t for t in step_titles)
     assert any("Passo 7" in t for t in step_titles)

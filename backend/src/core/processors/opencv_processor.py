@@ -55,6 +55,88 @@ class OpenCVProcessor(IImageProcessor):
             binary = cv2.bitwise_not(binary)
         return binary, float(t_val)
 
+    def estimate_median_glyph_height(self, binary: np.ndarray) -> float:
+        """
+        Faz uma pré-análise rápida de componentes conectados na máscara binária para estimar
+        a altura mediana dos possíveis caracteres presentes. Usada apenas como heurística de
+        calibração adaptativa (não faz parte do pipeline de 7 passos do PDF) — orienta o
+        dimensionamento do fechamento morfológico de reconexão de traços (ver
+        `reconnect_broken_strokes`).
+        """
+        num_labels, _, stats, _ = cv2.connectedComponentsWithStats(binary, 8)
+        heights = [
+            int(stats[i, cv2.CC_STAT_HEIGHT])
+            for i in range(1, num_labels)
+            if stats[i, cv2.CC_STAT_AREA] >= 12
+        ]
+        if not heights:
+            return 0.0
+        return float(np.median(heights))
+
+    def reconnect_broken_strokes(self, binary: np.ndarray) -> np.ndarray:
+        """
+        Passo adicional de calibração ("Reconexão de Traços Quebrados"): fecha pequenas
+        quebras de 1 a poucos pixels no traço binarizado, causadas por anti-aliasing em
+        fontes vazadas/contornadas (outline) ou em traços muito finos.
+
+        Problema físico identificado: em glifos desenhados apenas com contorno (sem
+        preenchimento interno), a curvatura acentuada de certos trechos (ex.: bojos de 'P',
+        'R', 'S', 'B') faz com que alguns pixels da borda fiquem com intensidade
+        intermediária após a suavização bilateral. Como o limiar de Otsu é único e global,
+        esses pixels de transição ficam abaixo do limiar em pequenos trechos, quebrando o
+        anel de contorno em 2 ou mais fragmentos desconectados — muitos deles pequenos
+        demais para passar nos filtros de tamanho/proporção, fazendo a letra "sumir" do
+        resultado final.
+
+        Solução adotada — fechamento morfológico adaptativo E BASEADO EM EVIDÊNCIA (não um
+        raio fixo aplicado às cegas): a função testa uma sequência crescente de raios de
+        fechamento (`cv2.MORPH_CLOSE`, elemento elíptico) e mede, a cada tentativa, quantos
+        componentes conectados continuam menores que ~55% da altura típica dos componentes
+        maiores da imagem (uma "assinatura" de fragmento de letra quebrada). O menor raio que
+        minimiza essa contagem de fragmentos é escolhido. Se a imagem de entrada já não
+        apresenta fragmentos (texto já bem formado, mesmo com kerning apertado), nenhum
+        fechamento é aplicado — isso evita fundir letras genuinamente vizinhas, que é o risco
+        de um fechamento morfológico de raio fixo baseado apenas no tamanho da fonte.
+        """
+        num_labels, _, stats, _ = cv2.connectedComponentsWithStats(binary, 8)
+        if num_labels <= 1:
+            return binary
+
+        areas = stats[1:, cv2.CC_STAT_AREA]
+        heights = stats[1:, cv2.CC_STAT_HEIGHT]
+        valid = areas >= 3
+        if not np.any(valid):
+            return binary
+
+        ref_height = float(np.percentile(heights[valid], 75))
+        if ref_height <= 0:
+            return binary
+
+        def _fragment_count(mask: np.ndarray) -> int:
+            nl, _, st, _ = cv2.connectedComponentsWithStats(mask, 8)
+            count = 0
+            for i in range(1, nl):
+                if st[i, cv2.CC_STAT_AREA] >= 3 and st[i, cv2.CC_STAT_HEIGHT] < 0.55 * ref_height:
+                    count += 1
+            return count
+
+        baseline_fragments = _fragment_count(binary)
+        best_mask = binary
+        best_fragments = baseline_fragments
+
+        # Testa raios crescentes; o dimensionamento máximo continua proporcional à altura
+        # típica dos glifos, mas só é efetivamente usado se reduzir a contagem de fragmentos.
+        max_kernel = max(3, min(15, int(round(ref_height * 0.18))))
+        for kernel_size in range(3, max_kernel + 1, 2):
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+            candidate = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+            fragments = _fragment_count(candidate)
+            if fragments < best_fragments:
+                best_fragments = fragments
+                best_mask = candidate
+
+        return best_mask
+
     def detect_edges(self, binary: np.ndarray, low_threshold: int = 70,
                      high_threshold: int = 150) -> np.ndarray:
         """
@@ -86,6 +168,7 @@ class OpenCVProcessor(IImageProcessor):
                 sigma_space=options.bilateral_sigma_space,
             )
             binary, _ = self.binarize_otsu(smooth)
+            binary = self.reconnect_broken_strokes(binary)
             if options.remove_noise:
                 binary = self._remove_small_noise(binary, options.sensitivity)
             return binary
@@ -126,6 +209,9 @@ class OpenCVProcessor(IImageProcessor):
         kernel_m = cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
         binary = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel_m)
 
+        # Reconexão adaptativa de traços quebrados (fontes vazadas/contornadas, ver docstring)
+        binary = self.reconnect_broken_strokes(binary)
+
         if options.remove_noise:
             binary = self._remove_small_noise(binary, options.sensitivity)
         return binary
@@ -133,6 +219,56 @@ class OpenCVProcessor(IImageProcessor):
     def resize_if_needed(self, image: np.ndarray, max_size: int = 1800) -> Tuple[np.ndarray, float]:
         """Redimensiona imagem se necessário."""
         return ImageUtils.resize_if_needed(image, max_size)
+
+    def auto_upscale_small_text(
+        self,
+        image: np.ndarray,
+        target_height: float = 46.0,
+        max_factor: float = 4.0,
+        max_dimension: int = 3600,
+    ) -> Tuple[np.ndarray, float]:
+        """
+        Amplia a imagem quando os caracteres detectados são pequenos demais para que a
+        binarização binária mantenha um espaço de pelo menos 1-2px entre letras vizinhas.
+
+        Problema físico identificado: em textos com corpo tipográfico pequeno (altura de
+        caractere abaixo de ~25px), o anti-aliasing do próprio texto faz com que os traços de
+        letras adjacentes se toquem após a binarização — o componente conectado resultante
+        passa a ser a palavra inteira (ou vários caracteres colados), e não uma letra
+        isolada. Ampliar a imagem antes da binarização (interpolação bicúbica) recria pixels
+        de transição adicionais entre as letras, restaurando um "vale" de separação que o
+        perfil de projeção vertical (`_split_wide_component`) consegue detectar.
+
+        A estimativa de altura de caractere usa uma binarização auxiliar simples (Otsu, sem
+        os demais passos do pipeline) apenas para a decisão de escala — não é a máscara
+        binária final usada na segmentação.
+        """
+        gray = self.to_grayscale(image)
+        _, quick_binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        if self.detect_dark_background(gray):
+            pass  # já é o polo correto: pixels claros (texto) tendem a virar 255
+        else:
+            quick_binary = cv2.bitwise_not(quick_binary)
+
+        median_h = self.estimate_median_glyph_height(quick_binary)
+        if median_h <= 0 or median_h >= target_height:
+            return image, 1.0
+
+        factor = min(max_factor, target_height / median_h)
+        h, w = image.shape[:2]
+        if factor <= 1.05:
+            return image, 1.0
+
+        # Respeita um teto de dimensão absoluta para não explodir o tempo de processamento
+        largest_side = max(h, w)
+        if largest_side * factor > max_dimension:
+            factor = max(1.0, max_dimension / largest_side)
+        if factor <= 1.05:
+            return image, 1.0
+
+        new_size = (int(round(w * factor)), int(round(h * factor)))
+        upscaled = cv2.resize(image, new_size, interpolation=cv2.INTER_CUBIC)
+        return upscaled, float(factor)
     
     def binarize(self, image: np.ndarray, method: str = 'auto') -> np.ndarray:
         """Binariza a imagem."""

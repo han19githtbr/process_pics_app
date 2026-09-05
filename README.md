@@ -6,7 +6,7 @@ Aplicação de segmentação e comparação de conteúdo visual em imagens de te
 
 Este projeto é baseado no trabalho acadêmico **"Processamento de Imagens: Processamento de Imagens de Textos"** (UFRRJ — TM438, Prof. Bruno Dembogurski, autores Handy Claude Milliance & Deived William da Silva Azevedo) e combina Python/OpenCV, FastAPI e React para:
 
-- executar fielmente o pipeline de 7 etapas conceituais do trabalho acadêmico;
+- executar fielmente o pipeline de 7 etapas conceituais do trabalho acadêmico, com 1 etapa extra de calibração adicionada (Reconexão de Traços Quebrados);
 - converter pixels RGB para tons de cinza com a fórmula de luminância $Y \leftarrow 0.299 \cdot R + 0.587 \cdot G + 0.114 \cdot B$;
 - aplicar suavização por Filtro Bilateral ($d=10, \sigma=75$) preservador de bordas;
 - binarizar via Método de Otsu com inversão `bitwise_not`;
@@ -14,8 +14,10 @@ Este projeto é baseado no trabalho acadêmico **"Processamento de Imagens: Proc
 - identificar contornos com compressão `cv2.CHAIN_APPROX_SIMPLE` e calcular `boundingRect`;
 - recortar individualmente as letras e reconstruir a sequência em ordem de leitura;
 - **desmembrar letras agrupadas** por análise de vales no perfil de projeção vertical de tinta;
-- **filtrar elementos não-letras** (linhas horizontais, molduras, blocos sólidos e poeiras de digitalização);
-- expor visualmente no Frontend todas as 7 etapas intermediárias geradas pelo OpenCV;
+- **filtrar elementos não-letras** (linhas horizontais, molduras, blocos sólidos, poeiras de digitalização e — parcialmente — desenhos/ilustrações coloridas via saturação HSV);
+- **reconectar traços quebrados** em fontes vazadas/contornadas, cuja curvatura acentuada gera micro-quebras de anti-aliasing na binarização (fechamento morfológico adaptativo e baseado em evidência de fragmentação, sem raio fixo);
+- **ampliar automaticamente textos pequenos/densos** (interpolação bicúbica) quando os caracteres são pequenos demais para permanecerem separados após a binarização;
+- expor visualmente no Frontend todas as 8 etapas intermediárias geradas pelo OpenCV (as 7 do trabalho acadêmico + 1 de calibração);
 - fornecer um painel de **Transparência e Honestidade Técnica** explicando imperfeições e causas de ruído;
 - comparar duas imagens para medir similaridade de conteúdo e detectar plágio;
 - manter histórico com persistência em MongoDB Atlas e fallback local em memória;
@@ -29,6 +31,7 @@ Este projeto é baseado no trabalho acadêmico **"Processamento de Imagens: Proc
 | **2** | **Tons de Cinza** | $Y \leftarrow 0.299R + 0.587G + 0.114B$ (`cv2.cvtColor`) | Representa a intensidade luminosa de cada pixel em um único valor [0..255]. |
 | **3** | **Filtro Bilateral** | `cv2.bilateralFilter(gray, 10, 75, 75)` | Suavização que remove ruído de alta frequência preservando a nitidez das arestas. |
 | **4** | **Binarização** | Método de Otsu + `cv2.bitwise_not` | Limiar estatístico ótimo $T$ para isolar o texto do fundo. |
+| **4.5** | **Reconexão de Traços Quebrados** *(calibração adicional, fora do PDF)* | `cv2.morphologyEx(CLOSE)` com raio adaptativo e baseado em evidência de fragmentação | Fecha micro-quebras de anti-aliasing em fontes vazadas/contornadas, sem raio fixo e sem fundir letras vizinhas bem formadas. |
 | **5** | **Detecção de Bordas** | `cv2.Canny(bin, 70, 150)` | Operador direcional com derivadas de Sobel e histerese. |
 | **6** | **Contornos** | `cv2.findContours(RETR_EXTERNAL, CHAIN_APPROX_SIMPLE)` | Rastreamento de fronteiras com compressão de pontos redundantes. |
 | **7** | **Recorte & Leitura** | `x,y,w,h = boundingRect(c); curt = img[y:y+h, x:x+w]` | Extração matricial individual e ordenação por linha/palavra. |

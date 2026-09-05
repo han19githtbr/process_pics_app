@@ -79,7 +79,7 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
                 <Microscope size={26} />
               </div>
               <h4>Pipeline aguardando processamento</h4>
-              <p>Execute a segmentação de uma imagem para inspecionar visualmente cada uma das 7 etapas de transformações matriciais.</p>
+              <p>Execute a segmentação de uma imagem para inspecionar visualmente cada uma das 8 etapas de transformações matriciais (as 7 etapas da literatura acadêmica original, mais a etapa de calibração "Reconexão de Traços Quebrados").</p>
             </div>
           ) : (
             <>
@@ -358,4 +358,3 @@ export const PipelineViewer: React.FC<PipelineViewerProps> = ({
     </div>
   );
 };
-

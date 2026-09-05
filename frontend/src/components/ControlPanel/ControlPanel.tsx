@@ -281,7 +281,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 <span className="mode-btn-title">Trabalho Acadêmico</span>
               </div>
               <span className="mode-btn-desc">
-                Pipeline de 7 etapas da literatura acadêmica original de P.I.
+                Pipeline de 7 etapas da literatura acadêmica original de P.I. (exibido com +1 etapa extra de calibração, "Reconexão de Traços")
               </span>
             </button>
           </div>
