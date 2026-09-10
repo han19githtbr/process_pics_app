@@ -1,7 +1,8 @@
 import cv2
 import numpy as np
 import time
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
+from skimage.restoration import richardson_lucy
 from ..interfaces.image_enhancer import IImageEnhancer
 from ..models.enhance_options import EnhanceOptions
 from ..models.enhance_result import EnhanceResult
@@ -164,6 +165,77 @@ class QualityEnhancer(IImageEnhancer):
         merged = cv2.merge((l_enhanced, a_channel, b_channel))
         return cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
 
+    def _gaussian_psf(self, size: int, sigma: float) -> np.ndarray:
+        """Constrói uma Point Spread Function (PSF) gaussiana 2D normalizada:
+        o modelo físico de "quanto e como" a luz de cada ponto nítido original
+        se espalhou sobre os pixels vizinhos (desfoque óptico de foco ou
+        tremor leve de mão), usado como estimativa para a deconvolução de
+        Richardson-Lucy logo abaixo."""
+        ax = np.linspace(-(size - 1) / 2.0, (size - 1) / 2.0, size)
+        gauss = np.exp(-0.5 * np.square(ax) / np.square(sigma))
+        kernel = np.outer(gauss, gauss)
+        return kernel / np.sum(kernel)
+
+    def _adaptive_deconv_params(self, sharpness_score: float) -> Tuple[float, int]:
+        """Calibra a deconvolução (sigma da PSF estimada e número de iterações
+        de Richardson-Lucy) a partir da nitidez medida no Passo 1. Faixas
+        escolhidas empiricamente: imagens já nítidas (>=150) pulam a etapa —
+        deconvoluir uma imagem que não está borrada só arrisca introduzir
+        ringing (halos oscilantes) sem nenhum ganho real de legibilidade."""
+        if self.options.mode == 'manual':
+            # Reaproveita o mesmo controle de 0..1 usado pela nitidez manual,
+            # mapeado para a faixa efetiva de sigma/iterações.
+            amt = self.options.sharpen_amount
+            if amt <= 0.01:
+                return 0.0, 0
+            return float(np.clip(0.6 + amt * 1.6, 0.6, 2.2)), int(round(6 + amt * 18))
+        if sharpness_score >= 150:
+            return 0.0, 0
+        if sharpness_score >= 60:
+            return 1.0, 8
+        if sharpness_score >= 25:
+            return 1.5, 15
+        return 2.0, 20
+
+    def _deconvolve(self, image: np.ndarray, sigma: float, num_iter: int) -> np.ndarray:
+        """Deconvolução de Richardson-Lucy aplicada apenas ao canal L
+        (luminância) do espaço LAB, com uma PSF gaussiana estimada a partir do
+        desfoque diagnosticado no Passo 1.
+
+        Por que esta etapa existe e o que ela resolve que o Passo 6 (máscara de
+        nitidez) NÃO resolve: um desfoque óptico/de movimento é fisicamente uma
+        CONVOLUÇÃO da imagem nítida original com uma PSF — uma operação que
+        efetivamente ATENUA e DESCARTA as frequências espaciais mais altas da
+        imagem (os traços finos das letras). A máscara de nitidez (unsharp
+        masking) apenas amplifica o contraste das bordas que restaram após
+        essa perda; ela não tem como recriar uma frequência que foi
+        genuinamente removida pela convolução. A deconvolução de Richardson-
+        Lucy, em vez disso, resolve iterativamente (por máxima
+        verossimilhança, assumindo ruído de Poisson) uma estimativa da imagem
+        que, se reconvoluída com a PSF estimada, reproduziria a imagem
+        borrada observada — ou seja, tenta genuinamente inverter o
+        borramento, não apenas mascará-lo.
+
+        Rodar apenas no canal de luminância (e não nos 3 canais de cor
+        independentemente) reduz o custo computacional em cerca de 3x e evita
+        artefatos de franja de cor (color fringing) nas bordas dos traços, sem
+        perda perceptível de nitidez para texto (a informação relevante de
+        legibilidade está quase inteiramente em L, não em A/B).
+        """
+        if num_iter <= 0:
+            return image
+
+        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+        l_channel, a_channel, b_channel = cv2.split(lab)
+        psf = self._gaussian_psf(size=9, sigma=sigma)
+
+        l_float = l_channel.astype(np.float64) / 255.0
+        deconvolved = richardson_lucy(l_float, psf, num_iter=num_iter, clip=True)
+        l_restored = np.clip(deconvolved * 255.0, 0, 255).astype(np.uint8)
+
+        merged = cv2.merge((l_restored, a_channel, b_channel))
+        return cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
+
     def _unsharp_mask(self, image: np.ndarray, amount: float, sigma: float = 1.4) -> np.ndarray:
         """Máscara de nitidez (Unsharp Masking): subtrai uma versão borrada
         (filtro Gaussiano) da imagem original para isolar os componentes de alta
@@ -237,16 +309,37 @@ class QualityEnhancer(IImageEnhancer):
         denoise_h = self._adaptive_denoise_h(raw_noise)
         denoised = self._denoise(upscaled, denoise_h)
 
-        # Passo 4: Balanço de Branco Automático
-        balanced = self._white_balance_gray_world(denoised)
+        # Passo 4: Deconvolução de Richardson-Lucy (inversão do desfoque) —
+        # aplicada DEPOIS do denoising (a deconvolução é um problema mal-posto
+        # que amplifica ruído remanescente; rodá-la sobre uma imagem já sem
+        # ruído reduz esse risco) e ANTES do CLAHE/nitidez (que devem agir
+        # sobre a estrutura já restaurada, não sobre a estrutura ainda borrada).
+        # Calibrada pela nitidez pós-escala (sharpness_before), não pela nitidez
+        # bruta pré-escala (raw_sharpness): a interpolação bicúbica do Passo 2
+        # já suaviza a imagem por si só (mais pixels interpolados entre os
+        # originais reduzem a variância do Laplaciano por pixel mesmo sem
+        # nenhum desfoque adicional real), então é na resolução de trabalho
+        # que o desfoque relevante a inverter precisa ser medido — a mesma
+        # lógica já aplicada à comparação Antes/Depois logo acima.
+        deconv_sigma, deconv_iterations = self._adaptive_deconv_params(sharpness_before)
+        deconvolved = self._deconvolve(denoised, deconv_sigma, deconv_iterations)
 
-        # Passo 5: Realce de Contraste Local Adaptativo (CLAHE)
+        # Passo 5: Balanço de Branco Automático
+        balanced = self._white_balance_gray_world(deconvolved)
+
+        # Passo 6: Realce de Contraste Local Adaptativo (CLAHE)
         clahe_clip = self._adaptive_clahe_clip(raw_contrast)
         contrasted = self._clahe_contrast(balanced, clahe_clip)
 
-        # Passo 6: Nitidez Adaptativa (aplicada por último, sobre a imagem já sem
-        # ruído — nitidez antes do denoising amplificaria o próprio ruído)
+        # Passo 7: Nitidez Adaptativa (aplicada por último, sobre a imagem já
+        # sem ruído e já deconvoluída). Quando a deconvolução do Passo 4 rodou
+        # de fato, ela já devolveu grande parte da estrutura de borda perdida;
+        # reduzimos a máscara de nitidez pela metade neste caso para não
+        # empilhar dois reforços de borda sobre o mesmo traço (o que produziria
+        # halos/ringing visíveis nas letras).
         sharpen_amount = self._adaptive_sharpen_amount(raw_sharpness)
+        if deconv_iterations > 0:
+            sharpen_amount *= 0.5
         sharpened = self._unsharp_mask(contrasted, sharpen_amount)
 
         final_image = sharpened
@@ -265,6 +358,12 @@ class QualityEnhancer(IImageEnhancer):
                 else 'Escala adaptativa: não necessária (texto já em tamanho adequado)'
             ),
             f'Redução de ruído Non-Local Means Colorido (h={denoise_h:.1f})',
+            (
+                f'Deconvolução de Richardson-Lucy (canal L, sigma={deconv_sigma:.1f}, '
+                f'{deconv_iterations} iterações)'
+                if deconv_iterations > 0
+                else 'Deconvolução: não aplicada (imagem já nítida o suficiente)'
+            ),
             'Balanço de branco automático (hipótese de mundo cinza)',
             f'Realce de contraste local CLAHE (clipLimit={clahe_clip:.1f}, blocos 8x8 no canal L/LAB)',
             f'Nitidez adaptativa por máscara de nitidez (amount={sharpen_amount:.2f}, sigma=1.4)',
@@ -278,6 +377,9 @@ class QualityEnhancer(IImageEnhancer):
             upscale_factor=upscale_factor,
             denoised=denoised,
             denoise_h=denoise_h,
+            deconvolved=deconvolved,
+            deconv_sigma=deconv_sigma,
+            deconv_iterations=deconv_iterations,
             balanced=balanced,
             contrasted=contrasted,
             clahe_clip=clahe_clip,
@@ -298,6 +400,8 @@ class QualityEnhancer(IImageEnhancer):
             'glyphHeightEstimate': round(glyph_height_estimate, 1),
             'upscaleFactor': round(float(upscale_factor), 4),
             'denoiseH': round(denoise_h, 2),
+            'deconvSigma': round(deconv_sigma, 2),
+            'deconvIterations': int(deconv_iterations),
             'claheClipLimit': round(clahe_clip, 2),
             'sharpenAmount': round(sharpen_amount, 2),
             'processingTime': round(processing_time, 4),
@@ -334,6 +438,9 @@ class QualityEnhancer(IImageEnhancer):
         upscale_factor = kw['upscale_factor']
         denoised = kw['denoised']
         denoise_h = kw['denoise_h']
+        deconvolved = kw['deconvolved']
+        deconv_sigma = kw['deconv_sigma']
+        deconv_iterations = kw['deconv_iterations']
         balanced = kw['balanced']
         contrasted = kw['contrasted']
         clahe_clip = kw['clahe_clip']
@@ -398,7 +505,36 @@ class QualityEnhancer(IImageEnhancer):
             },
             {
                 'step': 4,
-                'title': 'Passo 4: Balanço de Branco Automático (Mundo Cinza)',
+                'title': 'Passo 4: Deconvolução de Richardson-Lucy (Inversão do Desfoque)',
+                'technique': (
+                    f'skimage.restoration.richardson_lucy no canal L/LAB (PSF gaussiana sigma={deconv_sigma:.1f}, '
+                    f'{deconv_iterations} iterações)'
+                    if deconv_iterations > 0
+                    else 'Não aplicada — nitidez diagnosticada no Passo 1 já é suficiente'
+                ),
+                'formula': 'Ii+1 = Ii . [ (B / (Ii * PSF)) correlacionado_com PSF ], onde B é a imagem borrada observada',
+                'description': (
+                    'Um desfoque óptico ou de tremor leve é, fisicamente, uma convolução da imagem nítida '
+                    'original com uma função de espalhamento de ponto (PSF) — uma operação que descarta '
+                    'genuinamente as frequências mais altas (os traços finos das letras), e não apenas reduz '
+                    'seu contraste. Por isso a máscara de nitidez do Passo 7 sozinha tem um teto: ela só '
+                    'amplifica bordas que sobreviveram ao desfoque, sem poder recriar informação já perdida. '
+                    'A deconvolução de Richardson-Lucy resolve iterativamente uma estimativa da imagem que, '
+                    'reconvoluída com a PSF estimada, reproduziria a imagem borrada observada — ou seja, '
+                    'tenta genuinamente inverter o borramento. Roda apenas no canal de luminância (L) para '
+                    'reduzir o custo em ~3x e evitar franjas de cor nas bordas dos traços.'
+                    + (
+                        ''
+                        if deconv_iterations > 0
+                        else ' Como a imagem de entrada já foi diagnosticada como nítida no Passo 1, esta etapa '
+                        'foi pulada para não introduzir ringing (halos oscilantes) sem necessidade.'
+                    )
+                ),
+                'image': ImageUtils.encode_to_data_url(deconvolved),
+            },
+            {
+                'step': 5,
+                'title': 'Passo 5: Balanço de Branco Automático (Mundo Cinza)',
                 'technique': 'Gray-World White Balance por canal B/G/R',
                 'formula': 'ganho_c = clamp(mediaGlobal / media_c, 0.7, 1.4), c em {B, G, R}',
                 'description': (
@@ -411,8 +547,8 @@ class QualityEnhancer(IImageEnhancer):
                 'image': ImageUtils.encode_to_data_url(balanced),
             },
             {
-                'step': 5,
-                'title': 'Passo 5: Realce de Contraste Local Adaptativo (CLAHE)',
+                'step': 6,
+                'title': 'Passo 6: Realce de Contraste Local Adaptativo (CLAHE)',
                 'technique': f'cv2.createCLAHE(clipLimit={clahe_clip:.1f}, tileGridSize=(8,8)) no canal L do espaço LAB',
                 'formula': 'Equalização de histograma por blocos locais, com corte de amplificação de ruído (clip limit)',
                 'description': (
@@ -426,8 +562,8 @@ class QualityEnhancer(IImageEnhancer):
                 'image': ImageUtils.encode_to_data_url(contrasted),
             },
             {
-                'step': 6,
-                'title': 'Passo 6: Nitidez Adaptativa (Unsharp Masking)',
+                'step': 7,
+                'title': 'Passo 7: Nitidez Adaptativa (Unsharp Masking)',
                 'technique': f'sharpened = original + {sharpen_amount:.2f} x (original - GaussianBlur(sigma=1.4))',
                 'formula': 'I_nitida = I + amount . (I - Gauss_sigma(I))',
                 'description': (

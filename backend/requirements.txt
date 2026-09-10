@@ -1,6 +1,7 @@
 # backend/requirements.txt
 opencv-python-headless==4.10.0.84
 numpy==1.26.4
+scikit-image==0.24.0
 Pillow==10.4.0
 fastapi==0.111.0
 uvicorn[standard]==0.30.6
