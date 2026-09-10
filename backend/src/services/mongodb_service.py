@@ -229,3 +229,177 @@ class MongoDBService:
         deleted_count += len(self._local_history)
         self._local_history.clear()
         return deleted_count
+
+    # ------------------------------------------------------------------
+    # Banco de Imagens de Alta Qualidade
+    #
+    # Estes métodos usam a mesma mecânica de persistência acima (MongoDB
+    # com fallback local em memória), mas operam sobre o formato de
+    # documento da funcionalidade de melhoria de qualidade de imagem
+    # (QualityEnhancer), que não tem letras/transcrição — apenas a imagem
+    # original, a imagem melhorada, as técnicas aplicadas e as métricas de
+    # qualidade Antes/Depois. Uma instância de MongoDBService dedicada a
+    # esta coleção (ver `MONGODB_BANK_COLLECTION_NAME`) é criada pelo
+    # `ImageEnhancerHandler`, mantendo o banco de imagens de alta qualidade
+    # isolado do histórico de segmentação de letras.
+    # ------------------------------------------------------------------
+
+    def build_enhanced_image_document(
+        self,
+        enhanced_image: str,
+        original_image: str,
+        source_name: str,
+        techniques: List[str],
+        metrics: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return {
+            'enhancedImage': enhanced_image,
+            'originalImage': original_image,
+            'sourceName': source_name,
+            'techniques': techniques,
+            'metrics': metrics or {},
+            'createdAt': datetime.now(timezone.utc),
+            'updatedAt': datetime.now(timezone.utc),
+        }
+
+    def save_enhanced_image(
+        self,
+        enhanced_image: str,
+        original_image: str,
+        source_name: str,
+        techniques: List[str],
+        metrics: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        document = self.build_enhanced_image_document(
+            enhanced_image, original_image, source_name, techniques, metrics
+        )
+
+        if self.is_enabled and self.collection is not None:
+            try:
+                result = self.collection.insert_one(document)
+                return str(result.inserted_id)
+            except PyMongoError as exc:
+                logger.error('Falha ao inserir imagem no Banco de Imagens de Alta Qualidade: %s', exc)
+
+        item_id = f"local-{len(self._local_history) + 1}"
+        document['_id'] = item_id
+        self._local_history.insert(0, document)
+        return item_id
+
+    def list_enhanced_images(self, limit: int = 20) -> List[Dict[str, Any]]:
+        if self.is_enabled and self.collection is not None:
+            try:
+                items = list(
+                    self.collection.find({})
+                    .sort('createdAt', -1)
+                    .limit(limit)
+                    .allow_disk_use(True)
+                )
+                for item in items:
+                    item['_id'] = str(item.get('_id'))
+                return items
+            except PyMongoError as exc:
+                logger.error('Falha ao listar o Banco de Imagens de Alta Qualidade: %s', exc)
+
+        items = list(self._local_history)[:limit]
+        for item in items:
+            item['_id'] = str(item.get('_id', ''))
+        return items
+
+    def search_enhanced_images(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """Busca itens do banco de imagens de alta qualidade pelo nome do arquivo salvo."""
+        term = (query or '').strip()
+
+        if not term:
+            return self.list_enhanced_images(limit=limit)
+
+        if self.is_enabled and self.collection is not None:
+            try:
+                pattern = re.escape(term)
+                mongo_filter = {'sourceName': {'$regex': pattern, '$options': 'i'}}
+                items = list(
+                    self.collection.find(mongo_filter)
+                    .sort('createdAt', -1)
+                    .limit(limit)
+                    .allow_disk_use(True)
+                )
+                for item in items:
+                    item['_id'] = str(item.get('_id'))
+                return items
+            except PyMongoError as exc:
+                logger.error('Falha ao buscar no Banco de Imagens de Alta Qualidade: %s', exc)
+
+        term_lower = term.lower()
+        items = [
+            item for item in self._local_history
+            if term_lower in str(item.get('sourceName', '')).lower()
+        ][:limit]
+        for item in items:
+            item['_id'] = str(item.get('_id', ''))
+        return items
+
+    def get_enhanced_image(self, item_id: str) -> Optional[Dict[str, Any]]:
+        if self.is_enabled and self.collection is not None:
+            try:
+                object_id = ObjectId(item_id) if ObjectId is not None else item_id
+                item = self.collection.find_one({'_id': object_id})
+                if item is not None:
+                    item['_id'] = str(item.get('_id'))
+                    return item
+            except (TypeError, ValueError, PyMongoError) as exc:
+                logger.error(
+                    'Falha ao buscar item %s no Banco de Imagens de Alta Qualidade: %s', item_id, exc,
+                )
+
+        for item in self._local_history:
+            if str(item.get('_id')) == str(item_id):
+                item = dict(item)
+                item['_id'] = str(item.get('_id'))
+                return item
+
+        return None
+
+    def delete_enhanced_image(self, item_id: str) -> bool:
+        """Remove um item do Banco de Imagens de Alta Qualidade pelo ID (no MongoDB e no fallback local)."""
+        deleted = False
+        clean_id = str(item_id).strip()
+
+        if self.is_enabled and self.collection is not None:
+            try:
+                queries = [{'_id': clean_id}]
+                if ObjectId is not None and ObjectId.is_valid(clean_id):
+                    queries.append({'_id': ObjectId(clean_id)})
+
+                query = {'$or': queries} if len(queries) > 1 else queries[0]
+                res = self.collection.delete_one(query)
+                if res.deleted_count > 0:
+                    deleted = True
+            except (TypeError, ValueError, PyMongoError) as exc:
+                logger.error(
+                    'Falha ao remover item %s do Banco de Imagens de Alta Qualidade: %s', clean_id, exc,
+                )
+
+        initial_len = len(self._local_history)
+        self._local_history = [
+            item for item in self._local_history
+            if str(item.get('_id')) != clean_id
+        ]
+        if len(self._local_history) < initial_len:
+            deleted = True
+
+        return deleted
+
+    def clear_enhanced_images(self) -> int:
+        """Remove todos os itens do Banco de Imagens de Alta Qualidade (no MongoDB e no fallback local)."""
+        deleted_count = 0
+
+        if self.is_enabled and self.collection is not None:
+            try:
+                res = self.collection.delete_many({})
+                deleted_count += res.deleted_count
+            except PyMongoError as exc:
+                logger.error('Falha ao limpar o Banco de Imagens de Alta Qualidade no MongoDB: %s', exc)
+
+        deleted_count += len(self._local_history)
+        self._local_history.clear()
+        return deleted_count

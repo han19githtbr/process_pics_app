@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
+import { ScanSearch, Sparkles } from 'lucide-react';
 import { Segmenter } from './components/Segmenter';
+import { ImageEnhancer } from './components/ImageEnhancer';
 import { Login } from './components/Login/Login';
 import { checkSession, logout } from './services/api';
 import './styles/globals.css';
 
 function App() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+  const [activeView, setActiveView] = useState<'segment' | 'enhance'>('segment');
 
   useEffect(() => {
     const handleAuthExpired = () => setAuthenticated(false);
@@ -31,7 +34,30 @@ function App() {
 
   return (
     <div className="app">
-      <Segmenter onLogout={handleLogout} />
+      <nav className="app-top-nav" aria-label="Navegação principal">
+        <button
+          type="button"
+          className={`app-top-nav-btn ${activeView === 'segment' ? 'active' : ''}`}
+          onClick={() => setActiveView('segment')}
+        >
+          <ScanSearch size={15} />
+          <span>Segmentador de Letras</span>
+        </button>
+        <button
+          type="button"
+          className={`app-top-nav-btn ${activeView === 'enhance' ? 'active' : ''}`}
+          onClick={() => setActiveView('enhance')}
+        >
+          <Sparkles size={15} />
+          <span>Melhoria de Qualidade</span>
+        </button>
+      </nav>
+
+      {activeView === 'segment' ? (
+        <Segmenter onLogout={handleLogout} />
+      ) : (
+        <ImageEnhancer onLogout={handleLogout} />
+      )}
     </div>
   );
 }

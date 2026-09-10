@@ -14,6 +14,7 @@ A solução é desenhada para:
 - **rejeitar elementos não-textuais** (linhas, molduras, sublinhados, ruídos e artefatos gráficos);
 - disponibilizar um painel de **Transparência e Honestidade Técnica**, explicando as causas físicas e matemáticas de imperfeições da visão computacional tradicional;
 - manter todas as funcionalidades adicionais desenvolvidas (comparação de plágio, histórico persistido no MongoDB Atlas com fallback local, exclusão individual de imagens e limpeza total do banco de dados, rotação 90° de imagens, exportação em `.zip`, alternador de temas claro/escuro).
+- oferecer uma tela dedicada de **Melhoria de Qualidade de Imagens**, que restaura a legibilidade de fotos/scans de texto de baixa qualidade (borradas, ruidosas, com baixo contraste ou texto pequeno demais) preservando cor/tom, salvando o resultado em um **Banco de Imagens de Alta Qualidade** persistido no MongoDB (ver seção 26).
 - funcionar como Progressive Web App (PWA), com instalação no dispositivo, modo standalone e carregamento do shell visual em cache.
 
 ## 2. Pipeline das 7 Etapas do Trabalho em PDF (+ 1 Etapa de Calibração Implementada)
@@ -495,7 +496,14 @@ Todas as rotas abaixo (exceto `/health` na raiz) ficam sob o prefixo `/api`.
 | POST   | `/api/auth/login`       | Valida o e-mail e a senha administrativa e cria sessão HttpOnly |
 | POST   | `/api/auth/logout`      | Encerra a sessão administrativa (consumida pelo botão **Sair** no cabeçalho do dashboard) |
 | GET    | `/api/auth/session`     | Verifica se existe uma sessão válida |
-| OPTIONS| `/api/segment`, `/api/compare`, `/api/history`, `/api/history/{item_id}` | Respostas de CORS (preflight) |
+| POST   | `/api/enhance`           | Melhora a qualidade de uma imagem (escala, denoise, balanço de branco, CLAHE, nitidez) e retorna as 6 etapas explicadas + métricas Antes/Depois; salva automaticamente no Banco de Imagens de Alta Qualidade quando `preview` não é enviado |
+| GET    | `/api/image-bank`        | Lista os últimos 20 itens do Banco de Imagens de Alta Qualidade (MongoDB Atlas ou memória) |
+| GET    | `/api/image-bank/search?q=` | Busca itens do banco pelo nome do arquivo salvo |
+| POST   | `/api/image-bank/save`   | Salva manualmente uma imagem já melhorada no banco (equivalente ao `/history/save` do módulo de segmentação) |
+| GET    | `/api/image-bank/{item_id}` | Retorna um item específico do banco por ID |
+| DELETE | `/api/image-bank/{item_id}` | Exclui permanentemente um item do Banco de Imagens de Alta Qualidade |
+| DELETE | `/api/image-bank`        | Limpa permanentemente todo o Banco de Imagens de Alta Qualidade |
+| OPTIONS| `/api/segment`, `/api/compare`, `/api/history`, `/api/history/{item_id}`, `/api/enhance`, `/api/image-bank`, `/api/image-bank/{item_id}` | Respostas de CORS (preflight) |
 | GET    | `/api/health`            | Health check da API                                                     |
 | GET    | `/health`                | Health check equivalente, fora do prefixo `/api`                        |
 | GET    | `/`                      | Rota raiz com nome, versão e status do serviço                          |
@@ -832,3 +840,87 @@ cd "C:\Users\Handy Claude\Desktop\processamento-de-imagens\backend"
 - **Arquivos alterados:** `backend/src/core/processors/opencv_processor.py` (métodos `reconnect_broken_strokes`, `estimate_median_glyph_height`, `auto_upscale_small_text`), `backend/src/core/segmenters/improved_segmenter.py` (`segment`, `_build_pipeline_steps`, `_filter_components`, `_build_quality_warnings`), `backend/tests/test_segmenter.py` (assert de 8 etapas), `README.md`, `GUIA.md`, `frontend/src/components/PipelineViewer/PipelineViewer.tsx`, `frontend/src/components/ControlPanel/ControlPanel.tsx`.
 
 - **Verificação:** `pytest backend/tests/` — 25 de 25 testes passando. Testado manualmente com as 4 imagens de amostra da sessão (alfabeto vazado, parágrafo pequeno, poema ilustrado, citação em fundo preto), com contagens de letras e overlays de depuração conferidos visualmente antes e depois da correção.
+
+## 26. Melhoria de Qualidade de Imagens & Banco de Imagens de Alta Qualidade
+
+### 26.1. Motivação e diferença em relação ao pipeline de segmentação de letras
+
+O pipeline de segmentação (seções 2 e 3) tem um objetivo muito específico: **isolar e recortar cada letra individualmente**, e para isso converte a imagem em preto-e-branco absoluto (binarização de Otsu + Canny + `findContours`). Esse processo descarta deliberadamente tom de cinza contínuo e cor — o que é o comportamento correto para recorte de letras, mas o oposto do que se precisa quando o objetivo é **restaurar uma foto ou scan de texto de baixa qualidade para que fique legível e limpo**, preservando a imagem como um todo (cor, tons, textura de papel) em vez de reduzi-la a contornos binários.
+
+Por isso, a funcionalidade de **Melhoria de Qualidade de Imagens** (`QualityEnhancer`, `backend/src/core/enhancers/quality_enhancer.py`) é um módulo à parte, com seu próprio pipeline de restauração de imagem — não uma variação do segmentador.
+
+**Reaproveitamento real, não apenas nominal:** antes de implementar qualquer técnica nova, o pipeline de segmentação foi analisado em busca de partes reaproveitáveis. Duas rotinas resolvem exatamente o mesmo problema físico em ambos os módulos e por isso são **reaproveitadas integralmente** (mesmo código, mesma classe `OpenCVProcessor`, sem duplicação):
+- `OpenCVProcessor.auto_upscale_small_text` (seção 3.8.2) — texto pequeno demais prejudica tanto o recorte de letras quanto a restauração de qualidade; a mesma escala adaptativa por interpolação bicúbica resolve os dois casos.
+- `OpenCVProcessor.estimate_median_glyph_height` — usada para estimar a altura mediana dos caracteres e decidir o fator de ampliação.
+
+O que **não** foi reaproveitado, e por que: a binarização de Otsu + Canny do segmentador destrói a escala de cinza/cor contínua para poder isolar contornos — aplicá-la aqui apagaria justamente a informação que o usuário quer preservar e melhorar. Por isso, as etapas de restauração (redução de ruído, balanço de branco, realce de contraste local e nitidez) são técnicas de visão computacional novas, implementadas especificamente para este módulo e descritas na íntegra abaixo.
+
+### 26.2. Pipeline de 6 Etapas do `QualityEnhancer`
+
+| Passo | Nome | Técnica / Fórmula | Objetivo e Comportamento |
+| :---: | :--- | :--- | :--- |
+| **1** | **Diagnóstico Automático de Qualidade** | `cv2.Laplacian` (nitidez), resíduo de mediana 3x3 (ruído), desvio padrão (contraste) | Mede objetivamente nitidez, ruído e contraste da imagem de entrada. Essas três medidas calibram a intensidade de **todas** as etapas seguintes — nenhuma técnica usa um valor fixo igual para todas as imagens. |
+| **2** | **Escala Adaptativa para Texto Pequeno/Borrado** | `OpenCVProcessor.auto_upscale_small_text` (reaproveitado do segmentador) | Amplia por interpolação bicúbica quando o texto é pequeno demais, dando mais pixels de trabalho para as etapas seguintes. |
+| **3** | **Redução de Ruído Adaptativa** | `cv2.fastNlMeansDenoisingColored(h, hColor, templateWindowSize=7, searchWindowSize=21)` | Non-Local Means: busca blocos de pixels semelhantes em toda a imagem (não só na vizinhança imediata) e faz média ponderada por similaridade, removendo granulação de scanner/câmera e artefatos de compressão preservando bordas de traços. `h` é calibrado pelo ruído medido no Passo 1. |
+| **4** | **Balanço de Branco Automático** | Gray-World White Balance: `ganho_c = clamp(médiaGlobal / média_c, 0.7, 1.4)` por canal B/G/R | Corrige matizes amarelados/azulados de iluminação artificial ou de câmeras de celular, que reduzem o contraste percebido entre tinta e papel. |
+| **5** | **Realce de Contraste Local Adaptativo (CLAHE)** | `cv2.createCLAHE(clipLimit, tileGridSize=(8,8))` no canal L do espaço LAB | Equaliza o histograma de luminância em blocos locais de 8x8 (não globalmente), recuperando contraste do traço da tinta contra o papel mesmo sob iluminação desigual, sem alterar a informação de cor. `clipLimit` é calibrado pelo contraste medido no Passo 1. |
+| **6** | **Nitidez Adaptativa (Unsharp Masking)** | `I_nítida = I + amount . (I - GaussianBlur(sigma=1.4))` | Isola os componentes de alta frequência (bordas dos traços) subtraindo uma versão borrada da imagem, e os soma de volta amplificados, recuperando definição de caracteres afetados por desfoque leve de foco/movimento. `amount` é calibrado pela nitidez medida no Passo 1. |
+
+> **Ordem intencional:** a nitidez (Passo 6) é aplicada **por último**, depois da redução de ruído — aplicar nitidez antes do denoising amplificaria o próprio ruído junto com os traços do texto, produzindo um resultado pior, não melhor.
+
+### 26.3. Calibração adaptativa (modo automático) vs. modo manual
+
+Por padrão (`mode: 'auto'`), a força de cada técnica é escolhida por faixas empíricas a partir das métricas do Passo 1 (ex.: imagens com nitidez medida abaixo de 60 recebem reforço de nitidez maior que imagens com nitidez acima de 400; imagens com contraste medido abaixo de 25 recebem um `clipLimit` de CLAHE maior que imagens já bem contrastadas). Isso evita tanto o sub-processamento (imagem continua difícil de ler) quanto o sobre-processamento (halos de nitidez artificiais, ruído amplificado em blocos quase uniformes). Um `mode: 'manual'` também está disponível na API (`EnhanceOptions`), permitindo a um cliente avançado definir diretamente a força de denoise, nitidez e o `clipLimit` do CLAHE.
+
+### 26.4. Metodologia da comparação Antes/Depois (evitando uma armadilha metodológica)
+
+Um cuidado importante foi tomado ao medir "nitidez antes/depois": a variância do Laplaciano (usada para medir nitidez) é sensível à **escala** da imagem — ampliar uma imagem por interpolação bicúbica (Passo 2) já reduz a nitidez medida por pixel, mesmo sem nenhuma perda real de detalhe, simplesmente porque o mesmo conteúdo de borda passa a ocupar mais pixels. Se a comparação usasse a imagem original bruta (antes da escala) contra o resultado final (depois da escala), o ganho de nitidez trazido pelas etapas de restauração seria mascarado por essa mudança de escala, e o app apresentaria uma queda de nitidez mesmo quando o resultado visualmente está mais legível.
+
+Por isso, as métricas `sharpnessBefore`/`noiseBefore`/`contrastBefore` retornadas pela API são medidas **depois** da escala adaptativa (Passo 2) e **antes** de qualquer restauração (Passos 3-6) — ou seja, na mesma resolução de trabalho do resultado final. Isso garante uma comparação "maçã com maçã": qualquer melhora refletida nas métricas vem exclusivamente das técnicas de restauração, não da mudança de escala. As métricas brutas da imagem original (antes da escala) ainda são usadas internamente para calibrar a intensidade de cada técnica (seção 26.3), só não são usadas como baseline da comparação exibida. O campo `metrics.comparisonNote`, retornado pela API, documenta essa metodologia diretamente na resposta.
+
+### 26.5. Banco de Imagens de Alta Qualidade
+
+Assim como o histórico de segmentação (seção 11), o Banco de Imagens de Alta Qualidade é persistido com o mesmo mecanismo de MongoDB Atlas + fallback local em memória (`MongoDBService`), porém em uma **coleção separada e dedicada**:
+
+```text
+high_quality_images      (desenvolvimento)
+high_quality_images_prod (produção)
+```
+
+Cada documento salvo contém: `enhancedImage` (imagem melhorada em base64), `originalImage` (imagem original em base64, para a comparação Antes/Depois), `sourceName` (nome do arquivo), `techniques` (lista das técnicas aplicadas com seus parâmetros calibrados) e `metrics` (métricas completas de qualidade Antes/Depois), além de `createdAt`/`updatedAt`.
+
+**Quando o salvamento ocorre:** ao clicar em "Melhorar Qualidade da Imagem" no frontend, a requisição `POST /api/enhance` é enviada sem a flag `preview`, e o backend salva automaticamente o resultado no banco (mesmo padrão do `/api/segment`, seção 25.3/25.4 — pré-visualizações ao vivo não persistem, apenas ações explícitas do usuário). Um endpoint adicional `POST /api/image-bank/save` permite salvar manualmente uma imagem já melhorada (por exemplo, ao reprocessar/copiar um item existente), simetricamente ao `/api/history/save` do histórico de segmentação.
+
+O frontend expõe o banco através do componente `ImageBank` (`frontend/src/components/ImageBank/ImageBank.tsx`), reaproveitando deliberadamente as mesmas classes CSS do painel de Histórico (`history-panel`, `history-item`, `history-search`, etc., definidas em `Segmenter.css`) para manter uma identidade visual consistente com o restante da aplicação, com busca por nome de arquivo, exclusão individual e limpeza total.
+
+### 26.6. Onde a funcionalidade aparece na aplicação
+
+Uma nova aba de navegação no topo da aplicação (`App.tsx`, componente `.app-top-nav`) alterna entre o **Segmentador de Letras** (fluxo já existente, inalterado) e a nova tela de **Melhoria de Qualidade** (`ImageEnhancer`, `frontend/src/components/ImageEnhancer/`). A tela de Melhoria de Qualidade reaproveita o componente `ImageUploader` já existente para o upload da imagem de baixa qualidade, exibe uma comparação Antes/Depois, os cartões de métricas (reaproveitando as classes `.metric-card` já usadas na comparação de plágio) e um visualizador de etapas no mesmo formato visual do Pipeline Viewer da segmentação (`.pipeline-viewer-card`, `.step-detail-card` etc., de `PipelineViewer.css`), garantindo que a técnica aplicada a cada imagem seja sempre auditável e explicada, nunca uma caixa-preta.
+
+### 26.7. Arquivos novos e alterados
+
+**Backend (novos):**
+- `backend/src/core/interfaces/image_enhancer.py`
+- `backend/src/core/models/enhance_options.py`
+- `backend/src/core/models/enhance_result.py`
+- `backend/src/core/enhancers/quality_enhancer.py`
+- `backend/src/core/factory/enhancer_factory.py`
+- `backend/src/api/handlers/image_enhancer_handler.py`
+
+**Backend (alterados):**
+- `backend/src/api/routes/index.py` (rotas `/enhance` e `/image-bank/*`)
+- `backend/src/services/mongodb_service.py` (métodos `*_enhanced_image(s)` para o Banco de Imagens de Alta Qualidade)
+- `backend/src/config/settings.py` (`MONGODB_BANK_COLLECTION_NAME`)
+
+**Frontend (novos):**
+- `frontend/src/types/enhance.ts`
+- `frontend/src/components/ImageEnhancer/ImageEnhancer.tsx` + `.css` + `index.ts`
+- `frontend/src/components/ImageBank/ImageBank.tsx` + `index.ts`
+
+**Frontend (alterados):**
+- `frontend/src/types/index.ts` (exporta `enhance.ts`)
+- `frontend/src/services/api.ts` (`enhanceImage`, `getImageBank`, `searchImageBank`, `saveToImageBank`, `getImageBankItem`, `deleteImageBankItem`, `clearImageBank`)
+- `frontend/src/App.tsx` (alternador de abas entre Segmentador e Melhoria de Qualidade)
+- `frontend/src/styles/globals.css` (`.app-top-nav` e `.app-top-nav-btn`)
+
+**Verificação:** `npx tsc --noEmit` sem erros e `vite build` concluído com sucesso; pipeline testado manualmente com as 3 imagens de amostra desta sessão (texto sobre fundo com ilustração, texto com ruído/baixo contraste, foto de texto borrada), confirmando ganho de nitidez e contraste nas métricas Antes/Depois calculadas na mesma escala de trabalho (seção 26.4).

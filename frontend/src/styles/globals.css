@@ -300,3 +300,42 @@ code, kbd, samp, pre {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ==========================================================================
+   App Top Nav — alternador entre Segmentador de Letras e Melhoria de Qualidade
+   ========================================================================== */
+
+.app-top-nav {
+  display: flex;
+  gap: 6px;
+  padding: 10px 20px;
+  background: var(--bg-panel-solid);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.app-top-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.app-top-nav-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-card-hover);
+}
+
+.app-top-nav-btn.active {
+  color: #ffffff;
+  background: var(--gradient-button);
+  border-color: var(--accent-border);
+  box-shadow: var(--shadow-sm);
+}

@@ -1,0 +1,122 @@
+/* frontend/src/components/ImageEnhancer/ImageEnhancer.css
+   Reaproveita deliberadamente as classes já definidas em Segmenter.css,
+   PipelineViewer.css e ControlPanel.css (header, upload-card, status-dot,
+   btn, comparison-metrics, metric-card, pipeline-viewer-card, step-*, etc.)
+   para manter o mesmo estilo visual do restante da aplicação. Este arquivo
+   define apenas as classes exclusivas desta tela. */
+
+.enhancer-main-content {
+  max-width: 980px;
+}
+
+.enhancer-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+
+.enhancer-btn-run {
+  width: 100%;
+  max-width: 420px;
+  justify-content: center;
+}
+
+.enhancer-hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.enhancer-saved-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--status-success-soft);
+  border: 1px solid var(--status-success-border);
+  color: var(--status-success);
+  font-size: 0.85rem;
+  font-weight: 600;
+  animation: rise-in 240ms ease both;
+}
+
+.enhancer-compare-card {
+  background: var(--gradient-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  animation: result-in 260ms ease both;
+}
+
+.enhancer-compare-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg-input);
+  border-radius: var(--radius-full);
+  margin-bottom: 12px;
+}
+
+.enhancer-compare-viewport {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-page-secondary);
+  border: 1px solid var(--border-subtle);
+  max-height: 560px;
+}
+
+.enhancer-compare-image {
+  max-width: 100%;
+  max-height: 560px;
+  object-fit: contain;
+  display: block;
+}
+
+.enhancer-metrics-grid {
+  margin-top: 6px;
+}
+
+.enhancer-comparison-note {
+  font-size: 0.76rem;
+  color: var(--text-subtle);
+  line-height: 1.5;
+  margin: -4px 2px 4px;
+}
+
+.enhancer-steps-card {
+  animation: result-in 260ms ease both;
+}
+
+.enhancer-bank-section {
+  margin-top: 12px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.enhancer-bank-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: var(--text-primary);
+}
+
+.enhancer-bank-title h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+@media (max-width: 720px) {
+  .enhancer-compare-viewport,
+  .enhancer-compare-image {
+    max-height: 380px;
+  }
+}

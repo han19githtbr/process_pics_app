@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { ProcessingOptions, SegmentResult, ComparisonResult, HistoryEntry } from '../types';
+import { ProcessingOptions, SegmentResult, ComparisonResult, HistoryEntry, EnhanceOptions, EnhanceResult, ImageBankEntry } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 const apiClient = axios.create({
@@ -107,6 +107,70 @@ export const deleteHistoryItem = async (itemId: string): Promise<boolean> => {
 
 export const clearProcessingHistory = async (): Promise<boolean> => {
   const response = await apiClient.delete('/history');
+  return response.status === 200;
+};
+
+// --- Melhoria de Qualidade de Imagens / Banco de Imagens de Alta Qualidade ---
+
+export const enhanceImage = async (
+  image: string,
+  options?: EnhanceOptions,
+  fileName?: string,
+  preview?: boolean
+): Promise<EnhanceResult> => {
+  const response = await apiClient.post(
+    '/enhance',
+    { image, fileName, options: options || {}, preview: !!preview },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+
+  return response.data;
+};
+
+export const getImageBank = async (): Promise<ImageBankEntry[]> => {
+  const response = await apiClient.get('/image-bank');
+  return response.data?.items ?? [];
+};
+
+export const searchImageBank = async (query: string): Promise<ImageBankEntry[]> => {
+  const response = await apiClient.get('/image-bank/search', {
+    params: { q: query },
+  });
+  return response.data?.items ?? [];
+};
+
+export const saveToImageBank = async (payload: {
+  enhancedImage?: string;
+  originalImage?: string;
+  sourceName?: string;
+  techniques?: string[];
+  metrics?: Record<string, any>;
+}): Promise<ImageBankEntry | null> => {
+  const response = await apiClient.post('/image-bank/save', payload, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  return response.data ?? null;
+};
+
+export const getImageBankItem = async (itemId: string): Promise<ImageBankEntry | null> => {
+  const response = await apiClient.get(`/image-bank/${itemId}`);
+  return response.data ?? null;
+};
+
+export const deleteImageBankItem = async (itemId: string): Promise<boolean> => {
+  const response = await apiClient.delete(`/image-bank/${itemId}`);
+  return response.status === 200;
+};
+
+export const clearImageBank = async (): Promise<boolean> => {
+  const response = await apiClient.delete('/image-bank');
   return response.status === 200;
 };
 
