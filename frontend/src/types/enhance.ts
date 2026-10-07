@@ -6,6 +6,7 @@ export interface EnhanceOptions {
   targetGlyphHeight?: number;
   maxUpscaleFactor?: number;
   maxDimension?: number;
+  maxInputSize?: number;
 }
 
 export interface EnhancePipelineStep {
@@ -27,8 +28,11 @@ export interface EnhanceMetrics {
   glyphHeightEstimate?: number;
   upscaleFactor?: number;
   denoiseH?: number;
+  deconvSigma?: number;
+  deconvIterations?: number;
   claheClipLimit?: number;
   sharpenAmount?: number;
+  morphBlendAmount?: number;
   processingTime?: number;
   techniquesApplied?: string[];
   comparisonNote?: string;

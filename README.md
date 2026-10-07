@@ -20,6 +20,7 @@ Este projeto é baseado no trabalho acadêmico **"Processamento de Imagens: Proc
 - expor visualmente no Frontend todas as 8 etapas intermediárias geradas pelo OpenCV (as 7 do trabalho acadêmico + 1 de calibração);
 - fornecer um painel de **Transparência e Honestidade Técnica** explicando imperfeições e causas de ruído;
 - comparar duas imagens para medir similaridade de conteúdo e detectar plágio;
+- melhorar imagens de texto de baixa qualidade com um pipeline dedicado de restauração, deixando letras borradas/ruidosas mais nítidas e salvando o resultado no Banco de Imagens de Alta Qualidade;
 - manter histórico com persistência em MongoDB Atlas e fallback local em memória;
 - exportar os recortes em arquivo ZIP.
 
@@ -99,7 +100,14 @@ A API fica em `http://localhost:8000/api` e o frontend em `http://localhost:5173
 
 - `POST /api/segment` — segmenta uma imagem e retorna letras, debug e transcript
 - `POST /api/compare` — compara duas imagens e retorna grau de similaridade e status
+- `POST /api/enhance` — melhora imagens de texto de baixa qualidade com escala adaptativa, denoising, deconvolução, CLAHE, nitidez e realce morfológico de traços
 - `GET /api/health` — saúde da API
+
+## Correção do atraso na tela de login
+
+O atraso ao abrir o link no Desktop e no mobile acontecia porque o frontend esperava a resposta de `GET /api/auth/session` antes de decidir se renderizava a tela de login ou o dashboard. Em conexões lentas, backend frio ou mobile, essa checagem bloqueava a primeira pintura da interface e dava a impressão de que o app demorava para carregar.
+
+A correção foi feita em `frontend/src/App.tsx`: o estado inicial agora renderiza a tela de login imediatamente (`authenticated = false`) e a verificação de sessão roda em segundo plano. Se existir uma sessão válida, o app troca automaticamente para o dashboard; se não existir, o login já está visível desde o primeiro carregamento. Assim, a tela inicial não fica mais presa aguardando a API.
 
 ## Testes
 

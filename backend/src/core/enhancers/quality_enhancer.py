@@ -246,6 +246,78 @@ class QualityEnhancer(IImageEnhancer):
         sharpened = cv2.addWeighted(image, 1.0 + amount, blurred, -amount, 0)
         return np.clip(sharpened, 0, 255).astype(np.uint8)
 
+    def _adaptive_morph_blend_amount(self, sharpness_score: float) -> float:
+        """Calibra a intensidade do realce morfológico de traços."""
+        if self.options.mode == 'manual':
+            return float(np.clip(self.options.sharpen_amount * 0.7, 0.05, 0.70))
+        if sharpness_score < 25:
+            return 0.70
+        if sharpness_score < 60:
+            return 0.55
+        if sharpness_score < 150:
+            return 0.35
+        if sharpness_score < 400:
+            return 0.18
+        return 0.08
+
+    def _text_morphological_enhancement(
+        self, image: np.ndarray, sharpness_score: float
+    ) -> np.ndarray:
+        """Realce Morfológico de Traços de Texto: usa o gradiente morfológico
+        (dilatação - erosão) no canal de luminância para detectar com precisão
+        as bordas dos traços das letras, e aplica um realce de contraste
+        direcionado *exclusivamente* nessas regiões de borda — sem amplificar
+        o fundo uniforme de papel ou as áreas planas sem tinta.
+
+        Por que esta etapa é mais eficaz do que a máscara de nitidez (Passo 7)
+        para imagens de texto muito desfocadas: a máscara de nitidez (unsharp
+        masking) trabalha globalmente em toda a imagem — ela amplifica tanto as
+        bordas dos traços quanto o gradiente do papel, artefatos de compressão
+        e ruído residual. O gradiente morfológico, em contraste, é uma operação
+        que produz resposta alta *apenas* onde existe transição real de
+        intensidade (borda de tinta → papel), e zero nas regiões uniformes.
+        Ao usar esse gradiente como uma máscara espacial de realce, conseguimos
+        apertar as letras exatamente nos pixels de borda sem "queimar" o fundo.
+
+        A operação é aplicada no canal L (luminância) do espaço LAB para
+        preservar cor original e evitar franjas de crominância nas bordas.
+        A intensidade do realce é proporcional à magnitude do gradiente local
+        (auto-regulada por pixel), controlada por um fator global `blend_amount`
+        calibrado pela nitidez medida no Passo 1: imagens muito desfocadas
+        (sharpness_score < 60) recebem um realce mais forte; imagens já razoavelmente
+        nítidas recebem um realce suave para não introduzir halos artificiais."""
+        blend_amount = self._adaptive_morph_blend_amount(sharpness_score)
+
+        lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
+        l_channel, a_channel, b_channel = cv2.split(lab)
+
+        # Gradiente morfológico: dilatação - erosão → resposta alta apenas em bordas reais
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        dilated = cv2.dilate(l_channel, kernel)
+        eroded = cv2.erode(l_channel, kernel)
+        gradient = cv2.subtract(dilated, eroded).astype(np.float32)  # [0..255] nas bordas
+
+        # Normaliza o gradiente para [0..1] e usa como mapa de peso espacial:
+        # pixels com gradiente alto (bordas de letras) recebem realce total;
+        # pixels planos (papel, fundo) recebem realce próximo de zero.
+        grad_max = float(gradient.max())
+        grad_norm = gradient / (grad_max + 1e-6)
+
+        # Aplica realce local: escurece o lado escuro e clareia o lado claro da borda,
+        # aumentando o contraste local *na borda do traço* sem queimar o restante.
+        l_float = l_channel.astype(np.float32)
+        # Versão "mais escura" (aumenta opacidade da tinta) e "mais clara" (ilumina papel ao redor)
+        darkened = np.clip(l_float - 30.0 * grad_norm * blend_amount, 0, 255)
+        brightened = np.clip(l_float + 20.0 * grad_norm * blend_amount, 0, 255)
+        # Combina: pixels com L < 128 (tinta escura) ficam mais escuros;
+        # pixels com L >= 128 (papel claro) ficam mais claros → borda fica mais nítida.
+        mask_dark = (l_float < 128).astype(np.float32)
+        l_enhanced = mask_dark * darkened + (1.0 - mask_dark) * brightened
+        l_enhanced = np.clip(l_enhanced, 0, 255).astype(np.uint8)
+
+        merged = cv2.merge((l_enhanced, a_channel, b_channel))
+        return cv2.cvtColor(merged, cv2.COLOR_LAB2BGR)
+
     # ---------------------------------------------------------------------
     # Pipeline principal
     # ---------------------------------------------------------------------
@@ -255,9 +327,13 @@ class QualityEnhancer(IImageEnhancer):
         1. Diagnóstico automático (nitidez, ruído, contraste, altura de glifo)
         2. Escala adaptativa para texto pequeno/borrado (reaproveitada do segmentador)
         3. Redução de ruído adaptativa (Non-Local Means)
-        4. Balanço de branco automático (mundo cinza)
-        5. Realce de contraste local adaptativo (CLAHE)
-        6. Nitidez adaptativa (máscara de nitidez / unsharp masking)
+        4. Deconvolução de Richardson-Lucy (inversão do desfoque óptico)
+        5. Balanço de branco automático (mundo cinza)
+        6. Realce de contraste local adaptativo (CLAHE)
+        7. Nitidez adaptativa (máscara de nitidez / unsharp masking)
+        8. Realce morfológico de traços de texto (gradiente morfológico como
+           máscara espacial — aperta apenas as bordas tinta/papel, sem amplificar
+           fundo uniforme de papel ou ruído residual)
         """
         start_time = time.time()
         if options:
@@ -292,7 +368,7 @@ class QualityEnhancer(IImageEnhancer):
         )
 
         # Baseline "justa" da comparação Antes/Depois: medida DEPOIS da escala
-        # adaptativa (Passo 2), mas ANTES de qualquer restauração (Passos 3-6).
+        # adaptativa (Passo 2), mas ANTES de qualquer restauração (Passos 3-8).
         # Isso evita uma distorção metodológica: a variância do Laplaciano (e
         # métricas de ruído/contraste correlatas) é sensível à escala da imagem
         # — ampliar por interpolação bicúbica sozinho já reduz a nitidez por
@@ -342,7 +418,17 @@ class QualityEnhancer(IImageEnhancer):
             sharpen_amount *= 0.5
         sharpened = self._unsharp_mask(contrasted, sharpen_amount)
 
-        final_image = sharpened
+        # Passo 8: Realce Morfológico de Traços de Texto — aplicado por último,
+        # após a nitidez do Passo 7, para "apertar" as bordas dos traços de
+        # letra usando o gradiente morfológico como máscara espacial. Diferente
+        # do unsharp masking global (Passo 7), que amplifica também o ruído
+        # residual e as variações suaves do papel, este passo atua apenas onde
+        # existe uma transição real de intensidade (borda tinta → papel), deixando
+        # as áreas planas de fundo completamente inalteradas.
+        morph_blend_amount = self._adaptive_morph_blend_amount(raw_sharpness)
+        morph_enhanced = self._text_morphological_enhancement(sharpened, raw_sharpness)
+
+        final_image = morph_enhanced
 
         # Métricas finais, medidas da mesma forma que a baseline acima, para
         # permitir uma comparação Antes/Depois honesta, auditável e na mesma
@@ -367,6 +453,7 @@ class QualityEnhancer(IImageEnhancer):
             'Balanço de branco automático (hipótese de mundo cinza)',
             f'Realce de contraste local CLAHE (clipLimit={clahe_clip:.1f}, blocos 8x8 no canal L/LAB)',
             f'Nitidez adaptativa por máscara de nitidez (amount={sharpen_amount:.2f}, sigma=1.4)',
+            f'Realce morfológico de traços de texto (gradiente morfológico como máscara espacial, blend={morph_blend_amount:.2f})',
         ]
 
         processing_time = time.time() - start_time
@@ -385,6 +472,7 @@ class QualityEnhancer(IImageEnhancer):
             clahe_clip=clahe_clip,
             sharpened=sharpened,
             sharpen_amount=sharpen_amount,
+            morph_enhanced=morph_enhanced,
             sharpness_before=raw_sharpness,
             noise_before=raw_noise,
             contrast_before=raw_contrast,
@@ -404,6 +492,7 @@ class QualityEnhancer(IImageEnhancer):
             'deconvIterations': int(deconv_iterations),
             'claheClipLimit': round(clahe_clip, 2),
             'sharpenAmount': round(sharpen_amount, 2),
+            'morphBlendAmount': round(morph_blend_amount, 2),
             'processingTime': round(processing_time, 4),
             'techniquesApplied': techniques_applied,
             'comparisonNote': (
@@ -430,7 +519,7 @@ class QualityEnhancer(IImageEnhancer):
         )
 
     def _build_pipeline_steps(self, **kw) -> List[Dict[str, Any]]:
-        """Monta as 6 etapas visuais/explicativas exibidas no frontend, no mesmo
+        """Monta as 8 etapas visuais/explicativas exibidas no frontend, no mesmo
         formato usado pelo Pipeline Viewer da segmentação de letras (step, title,
         technique, formula, description, image em data URL)."""
         original_image = kw['original_image']
@@ -446,6 +535,7 @@ class QualityEnhancer(IImageEnhancer):
         clahe_clip = kw['clahe_clip']
         sharpened = kw['sharpened']
         sharpen_amount = kw['sharpen_amount']
+        morph_enhanced = kw['morph_enhanced']
         sharpness_before = kw['sharpness_before']
         noise_before = kw['noise_before']
         contrast_before = kw['contrast_before']
@@ -576,4 +666,34 @@ class QualityEnhancer(IImageEnhancer):
                 ),
                 'image': ImageUtils.encode_to_data_url(sharpened),
             },
+            {
+                'step': 8,
+                'title': 'Passo 8: Realce Morfológico de Traços de Texto',
+                'technique': (
+                    'Gradiente morfológico (cv2.dilate - cv2.erode, elemento elíptico 3x3) como máscara '
+                    'espacial de realce direcionado no canal L/LAB'
+                ),
+                'formula': (
+                    'grad = dilate(L) - erode(L); '
+                    'L_out = L_dark - 30·(grad/grad_max)·blend [onde L<128] + L_light + 20·(grad/grad_max)·blend [onde L≥128]'
+                ),
+                'description': (
+                    'Esta é a etapa que mais contribui para deixar as letras visíveis e nítidas em imagens '
+                    'de baixa qualidade: o gradiente morfológico detecta, com precisão de pixel, exatamente '
+                    'onde está a fronteira entre a tinta e o papel — produzindo valor alto apenas nas bordas '
+                    'dos traços e zero nas áreas planas (fundo de papel, áreas sem texto). Essa "máscara de '
+                    'borda" é usada para aplicar um realce local direcionado: os pixels da tinta escura '
+                    'ficam ainda mais escuros (maior opacidade), e os pixels do papel claro ao redor da '
+                    'letra ficam ainda mais claros (maior luminosidade) — o resultado é um aumento de '
+                    'contraste *exatamente na borda tinta/papel*, sem amplificar ruído residual nem '
+                    '"queimar" o fundo. Ao contrário do unsharp masking global (Passo 7), que amplifica '
+                    'indiscriminadamente qualquer variação de intensidade, esta etapa é cirúrgica: só '
+                    'toca onde há uma transição real de tinta para papel. A intensidade é calibrada '
+                    'automaticamente pela nitidez medida no Passo 1: imagens muito borradas (nitidez < 25) '
+                    'recebem blend_amount = 0.70; imagens já razoavelmente nítidas (nitidez > 400) '
+                    'recebem blend_amount = 0.08, evitando halos artificiais.'
+                ),
+                'image': ImageUtils.encode_to_data_url(morph_enhanced),
+            },
         ]
+

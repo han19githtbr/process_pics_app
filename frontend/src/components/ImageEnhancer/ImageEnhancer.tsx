@@ -167,12 +167,15 @@ export const ImageEnhancer: React.FC<ImageEnhancerProps> = ({ onLogout }) => {
             <p className="enhancer-hint">
               A imagem melhorada é salva automaticamente no <strong>Banco de Imagens de Alta Qualidade</strong>, logo abaixo.
             </p>
+            <p className="enhancer-limits-note">
+              <strong>Limite de processamento:</strong> imagens acima de 2000 px na maior dimensão são redimensionadas antes do processamento para garantir tempo de resposta previsível (o Non-Local Means é computacionalmente pesado em imagens grandes). Imagens com texto muito pequeno são ampliadas automaticamente por interpolação bicúbica (até 4× ou 3600 px). O pipeline aplica <strong>8 etapas sequenciais</strong>: Diagnóstico → Escala adaptativa → Denoising (Non-Local Means) → Deconvolução (Richardson-Lucy) → Balanço de branco → CLAHE → Nitidez (Unsharp Masking) → <strong>Realce morfológico de traços</strong>. A etapa final (Passo 8) usa gradiente morfológico como máscara espacial para apertar as bordas tinta/papel especificamente, sem amplificar ruído nem fundo.
+            </p>
           </div>
 
           {loading && (
             <LoadingSpinner
               label="Restaurando Qualidade da Imagem..."
-              subtext="Escala adaptativa, redução de ruído, balanço de branco, CLAHE e nitidez em andamento"
+              subtext="Diagnóstico · Escala adaptativa · Denoising · Deconvolução · Balanço de branco · CLAHE · Nitidez · Realce morfológico de texto"
             />
           )}
 

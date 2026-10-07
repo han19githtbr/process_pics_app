@@ -30,6 +30,23 @@
   text-align: center;
 }
 
+.enhancer-limits-note {
+  margin: 2px 0 0;
+  font-size: 0.76rem;
+  color: var(--text-subtle);
+  line-height: 1.6;
+  max-width: 680px;
+  text-align: center;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+}
+
+.enhancer-limits-note strong {
+  color: var(--text-secondary);
+}
+
 .enhancer-saved-banner {
   display: flex;
   align-items: center;
